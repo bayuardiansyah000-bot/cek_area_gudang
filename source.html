@@ -1005,8 +1005,6 @@ function renderLaporan() {
 
   let grandTotal = 0;
   let grandDone = 0;
-  let floorsDone = 0;
-  let floorsTotal = 0;
   let sectionsHtml = "";
   const focus = [];
   const firstRowSections = ["B2B", "Inbound", "Housekeeping"];
@@ -1036,8 +1034,7 @@ function renderLaporan() {
       const complete = total > 0 && progress === 0;
       secTotal += total;
       secDone += done;
-      floorsTotal++;
-      if (complete) { secFloorsDone++; floorsDone++; }
+      if (complete) secFloorsDone++;
       else focus.push({ section: sec, floor: fl, progress });
 
       return `
@@ -1104,13 +1101,11 @@ function renderLaporan() {
       <div class="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden">
         <div class="h-full bg-blue-600 rounded-full" style="width:${pct}%"></div>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
         <div class="rounded-xl bg-slate-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Total checklist</div><div class="text-lg font-bold text-slate-800">${grandTotal}</div></div>
         <div class="rounded-xl bg-emerald-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-emerald-600">Selesai</div><div class="text-lg font-bold text-emerald-700">${grandDone}</div></div>
         <div class="rounded-xl bg-amber-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-amber-600">On progress</div><div class="text-lg font-bold text-amber-700">${sisa}</div></div>
-        <div class="rounded-xl bg-rose-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-rose-600">NG belum selesai</div><div class="text-lg font-bold text-rose-700">${openNg}</div></div>
-        <div class="rounded-xl bg-blue-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-blue-600">Lantai selesai</div><div class="text-lg font-bold text-blue-700">${floorsDone}/${floorsTotal}</div></div>
-      </div>
+        <div class="rounded-xl bg-rose-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-rose-600">NG belum selesai</div><div class="text-lg font-bold text-rose-700">${openNg}</div></div>      </div>
     </div>`;
 
   const footer = `
