@@ -229,13 +229,13 @@
     <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
       <h3 class="font-bold text-sm">Pengaturan Keamanan</h3>
       <div>
-        <label class="text-xs font-semibold text-slate-600">PIN Admin (untuk buka tab Kelola)</label>
+        <label class="text-xs font-semibold text-slate-600">Password Admin (untuk buka tab Kelola)</label>
         <div class="flex gap-2 mt-1">
-          <input id="adminPinInput" type="text" inputmode="numeric" maxlength="8"
-            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2" placeholder="min. 4 karakter" />
+          <input id="adminPinInput" type="password" inputmode="text" maxlength="64"
+            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2" placeholder="Password admin Supabase" />
           <button onclick="saveAdminPin()" class="text-xs bg-blue-600 text-white px-4 rounded-lg font-semibold hover:bg-blue-700">Simpan</button>
         </div>
-        <p class="text-[10px] text-slate-500 mt-1">Password admin sekarang diatur di <b>Apps Script → Project Settings → Script Properties (ADMIN_PASSWORD)</b>, bukan di sini.</p>
+        <p class="text-[10px] text-slate-500 mt-1">Password admin diatur sebagai secret <b>ADMIN_PASSWORD</b> di <b>Supabase → Edge Functions → Secrets</b>, bukan di sini dan bukan PIN bagian.</p>
       </div>
       <div>
         <label class="text-xs font-semibold text-slate-600">PIN per Bagian (opsional)</label>
@@ -330,7 +330,7 @@
 <div id="pinModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
     <div class="text-center">
-      <div class="text-2xl font-bold text-blue-600 mb-1">PIN</div>
+      <div id="pinBadge" class="text-2xl font-bold text-blue-600 mb-1">PIN</div>
       <h3 id="pinTitle" class="font-bold text-slate-800">Masukkan PIN</h3>
       <p id="pinSubtitle" class="text-xs text-slate-500 mt-0.5">—</p>
     </div>
@@ -663,11 +663,14 @@ async function verifySectionPin(section, pin) {
 }
 
 function askPin(title, subtitle, validator, opts = {}) {
+  document.getElementById("pinBadge").textContent = opts.label || "PIN";
   document.getElementById("pinTitle").textContent = title;
   document.getElementById("pinSubtitle").textContent = subtitle;
+  document.getElementById("pinError").textContent = opts.errorText || "PIN salah, coba lagi.";
   const input = document.getElementById("pinInput");
   input.maxLength = opts.maxLength || 8;
   input.inputMode = opts.inputmode || "numeric";
+  input.placeholder = opts.placeholder || "••••";
   input.value = "";
   document.getElementById("pinError").classList.add("hidden");
   document.getElementById("pinModal").classList.remove("hidden");
@@ -1208,7 +1211,7 @@ function doSwitchView(v) {
 }
 function switchView(v) {
   if (v === "kelola" && !isAdminUnlocked()) {
-    askPin("Kelola Checklist", "Area admin. Masukkan PIN admin untuk melanjutkan.", async (input) => {
+    askPin("Kelola Checklist", "Area admin. Masukkan password admin Supabase untuk melanjutkan.", async (input) => {
       let res;
       try {
         res = await gasPost("adminLogin", {}, input);
@@ -1227,7 +1230,13 @@ function switchView(v) {
         return true;
       }
       return false;
-    }, { maxLength: 64, inputmode: "text" });
+    }, {
+      label: "Password Admin",
+      errorText: "Password admin salah, coba lagi.",
+      placeholder: "Masukkan password admin",
+      maxLength: 64,
+      inputmode: "text"
+    });
     return;
   }
   doSwitchView(v);
@@ -2261,7 +2270,7 @@ async function deleteSection(name) {
 
 /* PIN SAVE */
 function saveAdminPin() {
-  toast("Ganti password admin lewat Apps Script → Project Settings → Script Properties (ADMIN_PASSWORD).", "amber");
+  toast("Ganti password admin lewat Supabase → Edge Functions → Secrets → ADMIN_PASSWORD.", "amber");
 }
 async function saveSectionPin(sec, val) {
   const v = String(val || "").trim();
