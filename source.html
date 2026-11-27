@@ -1337,29 +1337,6 @@ function renderSummary() {
     return;
   }
 
-  const logsToday = todayLogsFor(currentSection, currentFloor);
-  const lastLog = [...data.logs]
-    .filter(l => l.section === currentSection && l.floor === currentFloor)
-    .sort((a, b) => new Date(b.time) - new Date(a.time))[0];
-  let info = "";
-  if (lastLog && lastLog.id !== editingLogId) {
-    const ok = !lastLog.hasIssue;
-    info = `<div class="mt-2 rounded-lg p-2.5 border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}">
-      <div class="flex items-start justify-between gap-2">
-        <div class="flex-1 text-xs ${ok ? 'text-emerald-800' : 'text-rose-800'}">
-          ${savedIds.size > 0 ? `<div class="text-[10px] mb-1 opacity-75">${savedIds.size} item tersimpan hari ini</div>` : ''}
-          <b>Terakhir:</b> ${esc(lastLog.area || '-')}
-          <div class="opacity-75">oleh ${esc(lastLog.officer)} · ${fmtDateTime(lastLog.time)}</div>
-          ${lastLog.hasIssue ? `<div class="font-semibold mt-0.5">${lastLog.ngCount} temuan NG</div>` : ""}
-        </div>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-200 text-emerald-800' : 'bg-rose-200 text-rose-800'} font-bold whitespace-nowrap">
-          ${ok ? "BERSIH" : "TEMUAN"}
-        </span>
-      </div>
-      <div class="text-[10px] opacity-75 mt-1">Untuk mengubah hasil, buka tab <b>Riwayat</b> → detail cek → tombol Revisi.</div>
-    </div>`;
-  }
-
   const pct = total ? Math.round(filled / total * 100) : 0;
   bar.innerHTML = `
     <div class="bg-white border border-slate-200 rounded-xl p-3">
@@ -1370,7 +1347,6 @@ function renderSummary() {
       <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div class="h-full ${editingLogId ? 'bg-amber-500' : 'bg-blue-500'} transition-all" style="width:${pct}%"></div>
       </div>
-      ${info}
     </div>`;
 }
 function renderItems() {
