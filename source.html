@@ -1103,10 +1103,28 @@ function renderLaporan() {
 
 /* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
 const CHECK_TYPE_GROUPS = [
-  { label: "Stop Kontak Lampu", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i },
-  { label: "Colokan Listrik", pattern: /^colokan/i, strip: /^colokan\s*(listrik\s*)?/i },
-  { label: "Pintu, Jendela & Rolling Door", pattern: /^(rolling\s*door|pintu|jendela)/i },
-  { label: "Lainnya", pattern: null },
+  { label: "Stop Kontak", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i },
+  {
+    label: "Colokan Listrik", pattern: /^colokan/i, strip: /^colokan\s*(listrik\s*)?/i,
+    rename: [
+      [/^kipas/i, "Kipas Angin"],
+      [/^(charger|pc|laptop)$/i, null],
+      [/^laptop\s*&\s*kabel/i, null],
+    ],
+  },
+  {
+    label: "Lainnya", pattern: null,
+    rename: [
+      [/^jendela/i, "Jendela"],
+      [/^rolling\s*door/i, "Rolling Door"],
+      [/^pintu\s*balkon/i, "Pintu Balkon"],
+      [/^lift/i, "Lift"],
+      [/^toilet/i, "Toilet"],
+      [/mushola/i, "Mushola"],
+      [/^ruang\s*meeting/i, "Ruang Meeting"],
+      [/office/i, "Ruang Office"],
+    ],
+  },
 ];
 function buildLaporanCekListHtml_() {
   function namaFromLabel_(label) {
@@ -1154,9 +1172,12 @@ function buildLaporanCekListHtml_() {
     const original = nama.trim();
     let index = CHECK_TYPE_GROUPS.findIndex(g => g.pattern && g.pattern.test(original));
     if (index === -1) index = groups.length - 1;
-    const strip = CHECK_TYPE_GROUPS[index].strip;
+    const { strip, rename = [] } = CHECK_TYPE_GROUPS[index];
     const short = strip ? original.replace(strip, "").replace(/^\((.*)\)$/, "$1").trim() : original;
-    const shown = short ? short.charAt(0).toUpperCase() + short.slice(1) : original;
+    if (!short) return;
+    const rule = rename.find(([match]) => match.test(short));
+    if (rule && rule[1] === null) return;
+    const shown = rule ? rule[1] : short.charAt(0).toUpperCase() + short.slice(1);
     const group = groups[index];
     if (group.seen.has(shown.toLowerCase())) return;
     group.seen.add(shown.toLowerCase());
