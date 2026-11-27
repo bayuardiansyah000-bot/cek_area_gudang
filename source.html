@@ -180,7 +180,7 @@
       <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
         <div>
           <h2 class="font-bold text-slate-800">Checklist — <span id="secTitle">—</span></h2>
-          <p class="text-xs text-slate-500">Tandai tiap item: <b class="text-emerald-600">OK</b> / <b class="text-rose-600">NG</b></p>
+          <p class="text-xs text-slate-500">Tandai tiap item: <b class="text-emerald-600">OK</b> / <b class="text-rose-600">NG</b> · foto wajib untuk setiap item</p>
         </div>
         <button id="btnReset" onclick="resetSection()" class="text-xs text-rose-600 hover:underline hidden">Reset</button>
       </div>
@@ -1428,7 +1428,8 @@ function renderItems() {
   } else {
     hiddenIds = todayFilledIds(currentSection, currentFloor);
   }
-  const pendingItems = items.filter(item => !hiddenIds.has(String(item.id)));
+  const pendingItems = items.filter(item =>
+    !hiddenIds.has(String(item.id)) && (editingLogId || !autoSavingIds.has(autoSaveKey(currentSection, currentFloor, item.id))));
 
   if (pendingItems.length === 0) {
     list.innerHTML = `<div class="text-center text-slate-500 py-12 text-sm">
@@ -1443,10 +1444,10 @@ function renderItems() {
     const val = currentValues[item.id] || "";
     const number = items.indexOf(item) + 1;
     return `
-      <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
+      <div data-item-row="${esc(item.id)}" class="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
         <div class="flex-1 flex gap-2 text-sm text-slate-800">
           <span class="w-6 shrink-0 text-right tabular-nums font-semibold text-slate-400">${number}.</span>
-          <span class="min-w-0">${esc(item.label)}</span>
+          <span class="min-w-0">${esc(item.label)}${val && !(currentPhotos[item.id] && currentPhotos[item.id].thumb) && uploadingPhotoKey !== item.id ? `<span class="block mt-0.5 text-xs font-semibold text-rose-600">Foto belum ada. Ambil foto dulu supaya bisa tersimpan.</span>` : ""}</span>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 w-full sm:w-auto pl-8 sm:pl-0">${photoButton(item.id)}${buttons(item.id, val)}</div>
       </div>`;
@@ -1500,7 +1501,7 @@ function photoButton(key) {
       </span>`;
   }
   return `
-    <label class="w-10 h-10 rounded-lg border border-slate-300 text-slate-500 grid place-items-center cursor-pointer hover:bg-slate-50 shrink-0" title="Tambah foto" aria-label="Tambah foto">
+    <label class="w-10 h-10 rounded-lg border grid place-items-center cursor-pointer shrink-0 ${currentValues[key] ? "border-rose-500 text-rose-600 bg-rose-50 ring-2 ring-rose-300 animate-pulse" : "border-slate-300 text-slate-500 hover:bg-slate-50"}" title="Tambah foto" aria-label="Tambah foto">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       <input type="file" accept="image/*" capture="environment" class="hidden"
              onchange="handlePhotoFile('${esc(key)}', this)">
@@ -1548,6 +1549,7 @@ async function handlePhotoFile(key, inputEl) {
     uploadingPhotoKey = null;
     inputEl.value = "";
     renderItems();
+    if (currentValues[key] === "OK" && currentPhotos[key] && !editingLogId) queueAutoSave(key);
   }
 }
 
@@ -1910,7 +1912,96 @@ function setValue(key, val) {
   if (currentValues[key] === val) delete currentValues[key];
   else currentValues[key] = val;
   persistDraft();
+  if (val === "OK" && currentValues[key] === "OK" && !editingLogId) {
+    queueAutoSave(key);
+    return;
+  }
   renderItems(); renderSummary();
+}
+
+const autoSavingIds = new Set();
+const autoSaveQueue = new Map();
+let autoSaveTimer = null;
+let autoSaveChain = Promise.resolve();
+function autoSaveKey(section, floor, id) {
+  return `${dk(section, floor)}|${id}`;
+}
+function slideOutRow(id) {
+  const row = [...document.querySelectorAll("#itemList [data-item-row]")].find(el => el.dataset.itemRow === String(id));
+  if (!row || reduceMotion.matches || !window.Motion) return Promise.resolve();
+  return Motion.animate(row, { x: [0, -row.offsetWidth], opacity: [1, 0] }, { duration: 0.28, ease: "easeIn" }).finished;
+}
+async function queueAutoSave(id) {
+  const officerEl = document.getElementById("officer");
+  const areaEl = document.getElementById("area");
+  if (!officerEl.value.trim() || !areaEl.value.trim()) {
+    delete currentValues[id];
+    persistDraft();
+    renderItems(); renderSummary();
+    toast("Isi Nama Petugas dan Area Kerja dulu, lalu tekan OK lagi.", "amber");
+    (officerEl.value.trim() ? areaEl : officerEl).focus();
+    return;
+  }
+  if (!(currentPhotos[id] && currentPhotos[id].thumb)) {
+    renderItems(); renderSummary();
+    toast(uploadingPhotoKey === id
+      ? "Foto sedang diunggah. Item tersimpan otomatis setelah foto masuk."
+      : "Foto wajib. Ambil foto item ini, nanti tersimpan otomatis.", "amber");
+    return;
+  }
+  const group = dk(currentSection, currentFloor);
+  if (!autoSaveQueue.has(group)) {
+    autoSaveQueue.set(group, { section: currentSection, floor: currentFloor, area: areaEl.value.trim(), officer: officerEl.value.trim(), ids: new Set() });
+  }
+  autoSaveQueue.get(group).ids.add(String(id));
+  autoSavingIds.add(autoSaveKey(currentSection, currentFloor, id));
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => { autoSaveChain = autoSaveChain.then(flushAutoSave); }, 500);
+  await slideOutRow(id).catch(() => {});
+  renderItems(); renderSummary();
+}
+async function flushAutoSave() {
+  const batches = [...autoSaveQueue.values()];
+  autoSaveQueue.clear();
+  for (const batch of batches) {
+    const { section, floor, area, officer, ids } = batch;
+    const draft = data.drafts[dk(section, floor)] || { values: {}, photos: {} };
+    const time = new Date().toISOString();
+    const snapshot = floorItems(section, floor)
+      .filter(item => ids.has(String(item.id)))
+      .map(item => {
+        const photo = (draft.photos || {})[item.id];
+        return {
+          id: item.id, label: item.label, val: "OK",
+          photo: photo ? { thumb: photo.thumb, view: photo.view, fileId: photo.fileId || "" } : null,
+          area, officer, note: "", time,
+        };
+      });
+    const release = () => ids.forEach(id => autoSavingIds.delete(autoSaveKey(section, floor, id)));
+    if (!snapshot.length) { release(); continue; }
+    let res;
+    try {
+      res = await gasPost("addLog", {
+        section, floor, area, officer, note: "", items: snapshot,
+        hasIssue: false, ngCount: 0, ngItems: [], pin: sessionStorage.getItem("pin_" + section) || "",
+      });
+    } catch (err) {
+      res = { ok: false, error: "Gagal terhubung ke server. Periksa koneksi internet." };
+    }
+    if (res.ok) {
+      applySavedLogLocally_(res.result, { section, floor, area, officer, note: "" }, snapshot, false);
+      ids.forEach(id => {
+        delete (draft.values || {})[id];
+        delete (draft.photos || {})[id];
+        if (section === currentSection && floor === currentFloor) { delete currentValues[id]; delete currentPhotos[id]; }
+      });
+      save();
+    } else {
+      toast(`Gagal menyimpan ${snapshot.length} item: ${res.error || ""}`, "rose");
+    }
+    release();
+  }
+  renderAll();
 }
 function persistDraft() {
   const k = dk(currentSection, currentFloor);
@@ -2057,9 +2148,9 @@ async function submit() {
     alert("Ada temuan NG — tolong isi catatan temuan.");
     document.getElementById("note").focus(); return;
   }
-  const ngWithoutPhoto = ngKeys.filter(k => !currentPhotos[k]);
-  if (ngWithoutPhoto.length) {
-    alert(`Ada ${ngWithoutPhoto.length} item NG yang belum dilampiri foto. Foto wajib untuk temuan NG.`);
+  const withoutPhoto = activeKeys.filter(k => !(currentPhotos[k] && currentPhotos[k].thumb) && (currentValues[k] === "NG" || !editingLogId));
+  if (withoutPhoto.length) {
+    alert(`Ada ${withoutPhoto.length} item yang belum dilampiri foto. Foto wajib untuk setiap item OK dan NG.`);
     return;
   }
   if (uploadingPhotoKey) {
