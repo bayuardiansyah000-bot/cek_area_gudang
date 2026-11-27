@@ -214,17 +214,13 @@
 
   <!-- ============ REKAP ============ -->
   <div id="view-rekap" class="hidden space-y-4">
-    <div class="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-      <div id="rekapQuick" class="flex gap-1.5 overflow-x-auto no-scrollbar"></div>
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
       <div class="flex flex-wrap items-end gap-2">
         <label class="block">
-          <span class="text-[11px] font-semibold text-slate-500">Dari tanggal</span>
-          <input type="date" id="rekapFrom" onchange="renderRekap()" class="mt-1 block text-sm border border-slate-300 rounded-lg px-3 h-10" />
+          <span class="text-[11px] font-semibold text-slate-500">Tanggal</span>
+          <input type="date" id="rekapDate" onchange="renderRekap()" class="mt-1 block text-sm border border-slate-300 rounded-lg px-3 h-10" />
         </label>
-        <label class="block">
-          <span class="text-[11px] font-semibold text-slate-500">Sampai tanggal</span>
-          <input type="date" id="rekapTo" onchange="renderRekap()" class="mt-1 block text-sm border border-slate-300 rounded-lg px-3 h-10" />
-        </label>
+        <button onclick="document.getElementById('rekapDate').value = todayStr(); renderRekap()" class="text-sm h-10 px-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50">Hari ini</button>
         <button id="btnExport" onclick="exportExcel()" class="ml-auto inline-flex items-center gap-1.5 text-sm bg-emerald-700 hover:bg-emerald-800 text-white px-4 h-10 rounded-lg font-semibold">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
           Export Excel
@@ -2712,21 +2708,10 @@ function cancelRevision() {
 }
 
 /* ============ REKAP ============ */
-const REKAP_PRESETS = [
-  { key: "today", label: "Hari ini", from: () => todayStr() },
-  { key: "7", label: "7 hari", from: () => todayStr(new Date(Date.now() - 6 * 86400000)) },
-  { key: "30", label: "30 hari", from: () => todayStr(new Date(Date.now() - 29 * 86400000)) },
-  { key: "month", label: "Bulan ini", from: () => todayStr().slice(0, 8) + "01" },
-];
-function setRekapPreset(key) {
-  const preset = REKAP_PRESETS.find(p => p.key === key);
-  if (!preset) return;
-  document.getElementById("rekapFrom").value = preset.from();
-  document.getElementById("rekapTo").value = todayStr();
-  renderRekap();
-}
 function rekapRange() {
-  return { from: document.getElementById("rekapFrom").value, to: document.getElementById("rekapTo").value };
+  const input = document.getElementById("rekapDate");
+  if (!input.value) input.value = todayStr();
+  return { from: input.value, to: input.value };
 }
 function fmtShortDate(dateStr) {
   return dateStr ? dateStr.split("-").reverse().join("/") : "-";
@@ -2816,12 +2801,6 @@ function progressTone(done, target) {
 
 function renderRekap() {
   const { from, to } = rekapRange();
-  const today = todayStr();
-  document.getElementById("rekapQuick").innerHTML = REKAP_PRESETS.map(p => {
-    const active = from === p.from() && to === today;
-    return `<button onclick="setRekapPreset('${p.key}')" class="shrink-0 text-sm h-9 px-3 rounded-lg border font-semibold ${active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"}">${p.label}</button>`;
-  }).join("");
-
   const stats = rekapStats(from, to);
   const pct = pctOf(stats.done, stats.target);
   const remaining = Math.max(0, stats.target - stats.done);
@@ -2844,7 +2823,7 @@ function renderRekap() {
     : stats.findings.length ? `<p class="text-sm text-emerald-700 mt-1">Semua temuan sudah diperbaiki.</p>` : "";
   document.getElementById("rekapSummary").innerHTML = `
     <div class="bg-white rounded-2xl border border-slate-200 p-4">
-      <div class="text-[11px] uppercase tracking-widest font-bold text-slate-500">Periode ${esc(rekapPeriodLabel(from, to))}</div>
+      <div class="text-[11px] uppercase tracking-widest font-bold text-slate-500">${esc(rekapPeriodLabel(from, to))}</div>
       <p class="text-base text-slate-800 mt-1"><b>${stats.done} dari ${stats.target} item</b> sudah dicek (${pct}%)${remaining ? `, <b class="text-rose-700">${remaining} belum dicek</b>` : ""}.</p>
       ${followUp}
       <div class="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden"><div class="h-full ${pct === 100 ? "bg-emerald-500" : "bg-amber-500"}" style="width:${pct}%"></div></div>
@@ -2857,9 +2836,7 @@ function renderRekap() {
       </div>
     </div>`;
 
-  document.getElementById("rekapTableNote").textContent = stats.days > 1
-    ? `Angka x/y = item yang sudah diisi OK/NG dari target. Target = jumlah item × ${stats.days} hari.`
-    : "Angka x/y = item yang sudah diisi OK/NG dari jumlah item yang wajib dicek.";
+  document.getElementById("rekapTableNote").textContent = "Angka x/y = item yang sudah diisi OK/NG dari jumlah item yang wajib dicek.";
   const toneClass = { done: "text-emerald-700", partial: "text-amber-700", none: "text-rose-700" };
   const barClass = { done: "bg-emerald-500", partial: "bg-amber-500", none: "bg-slate-200" };
   const rowHtml = (label, r, isSub) => {
@@ -2989,7 +2966,7 @@ function photoUrl(photo) {
 async function buildExcelWorkbook(ExcelJS, from, to) {
   const stats = rekapStats(from, to);
   const period = rekapPeriodLabel(from, to);
-  const subtitle = `Periode ${period}  ·  Dibuat ${fmtDateTime(new Date())}`;
+  const subtitle = `Tanggal ${period}  ·  Dibuat ${fmtDateTime(new Date())}`;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "CRA Cek Area Kerja";
   workbook.created = new Date();
@@ -3024,7 +3001,7 @@ async function buildExcelWorkbook(ExcelJS, from, to) {
 
   const tableTop = 4 + kpis.length + 1;
   const note = summary.getCell(tableTop, 1);
-  note.value = stats.days > 1 ? `Target = jumlah item × ${stats.days} hari` : "Target = jumlah item yang wajib dicek";
+  note.value = "Target = jumlah item yang wajib dicek";
   note.font = { italic: true, color: { argb: XL.muted } };
   const head = summary.getRow(tableTop + 1);
   head.values = ["Bagian", "Lantai", "Dicek", "Target", "Belum dicek", "OK", "NG", "Progres"];
@@ -3117,7 +3094,7 @@ async function exportExcel() {
     const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `rekap-cek-area_${from || "awal"}_sd_${to || todayStr()}.xlsx`;
+    a.download = `rekap-cek-area_${from}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -3146,8 +3123,7 @@ function renderAll() {
 /* ============ INIT & POLLING ============ */
 document.getElementById("filterDate").addEventListener("change", () => { expandedLogId = null; renderRiwayat(); });
 document.getElementById("filterDate").value = todayStr();
-document.getElementById("rekapFrom").value = todayStr(new Date(Date.now() - 29*86400000));
-document.getElementById("rekapTo").value = todayStr();
+document.getElementById("rekapDate").value = todayStr();
 
 let lastMetaSig = "";
 let lastFullRefresh = 0;
