@@ -214,35 +214,34 @@
 
   <!-- ============ REKAP ============ -->
   <div id="view-rekap" class="hidden space-y-4">
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center gap-2">
-      <label class="text-xs font-semibold text-slate-600">Periode:</label>
-      <input type="date" id="rekapFrom" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
-      <span class="text-slate-400 text-sm">s/d</span>
-      <input type="date" id="rekapTo" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
-      <button onclick="renderRekap()" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold">Terapkan</button>
-      <button onclick="exportCSV()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold ml-auto">Export CSV</button>
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+      <div id="rekapQuick" class="flex gap-1.5 overflow-x-auto no-scrollbar"></div>
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="block">
+          <span class="text-[11px] font-semibold text-slate-500">Dari tanggal</span>
+          <input type="date" id="rekapFrom" onchange="renderRekap()" class="mt-1 block text-sm border border-slate-300 rounded-lg px-3 h-10" />
+        </label>
+        <label class="block">
+          <span class="text-[11px] font-semibold text-slate-500">Sampai tanggal</span>
+          <input type="date" id="rekapTo" onchange="renderRekap()" class="mt-1 block text-sm border border-slate-300 rounded-lg px-3 h-10" />
+        </label>
+        <button id="btnExport" onclick="exportExcel()" class="ml-auto inline-flex items-center gap-1.5 text-sm bg-emerald-700 hover:bg-emerald-800 text-white px-4 h-10 rounded-lg font-semibold">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Export Excel
+        </button>
+      </div>
     </div>
-    <div id="rekapStats" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <h3 class="font-bold text-sm mb-2">Per Bagian</h3>
-      <div id="rekapPerSection" class="space-y-2"></div>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <h3 class="font-bold text-sm mb-2">Per Lantai</h3>
-      <div id="rekapPerFloor" class="space-y-2"></div>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <h3 class="font-bold text-sm mb-2">Per Area Kerja</h3>
-      <div id="rekapPerArea" class="space-y-2"></div>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <h3 class="font-bold text-sm mb-2">Detail per Bagian & Lantai</h3>
-      <div id="rekapPerCombo" class="space-y-2"></div>
-    </div>
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-      <h3 class="font-bold text-sm mb-2">Daftar Temuan NG</h3>
+    <div id="rekapSummary"></div>
+    <section class="bg-white rounded-2xl border border-slate-200 p-4">
+      <h3 class="font-bold text-sm">Per Bagian & Lantai</h3>
+      <p class="text-[11px] text-slate-500 mt-0.5 mb-3">1 cek = 1 kali checklist diisi untuk satu bagian dan satu lantai. "Ada temuan" = minimal satu item NG.</p>
+      <div id="rekapTable" class="overflow-x-auto"></div>
+    </section>
+    <section class="bg-white rounded-2xl border border-slate-200 p-4">
+      <h3 class="font-bold text-sm">Daftar Temuan (NG)</h3>
+      <p class="text-[11px] text-slate-500 mt-0.5 mb-3">Satu baris per barang/item yang bermasalah. Yang belum diperbaiki tampil paling atas.</p>
       <div id="rekapTemuan" class="space-y-2"></div>
-    </div>
+    </section>
   </div>
 
   <!-- ============ KELOLA ============ -->
@@ -2713,169 +2712,289 @@ function cancelRevision() {
 }
 
 /* ============ REKAP ============ */
-function renderRekap() {
-  const from = document.getElementById("rekapFrom").value;
-  const to = document.getElementById("rekapTo").value;
-  let logs = [...data.logs];
-  if (from) logs = logs.filter(l => logDateStr(l.time) >= from);
-  if (to)   logs = logs.filter(l => logDateStr(l.time) <= to);
-
-  function ngStatus(log) {
-    const items = Array.isArray(log.items) ? log.items : [];
-    if (!items.length) return { open: log.hasIssue ? (Number(log.ngCount) || 0) : 0, closed: 0 };
-    let open = 0;
-    let closed = 0;
-    items.forEach(it => {
-      if (!it || it.val !== "NG") return;
-      if (it.repairStatus === "SELESAI") closed++;
-      else open++;
+const REKAP_PRESETS = [
+  { key: "today", label: "Hari ini", from: () => todayStr() },
+  { key: "7", label: "7 hari", from: () => todayStr(new Date(Date.now() - 6 * 86400000)) },
+  { key: "30", label: "30 hari", from: () => todayStr(new Date(Date.now() - 29 * 86400000)) },
+  { key: "month", label: "Bulan ini", from: () => todayStr().slice(0, 8) + "01" },
+];
+function setRekapPreset(key) {
+  const preset = REKAP_PRESETS.find(p => p.key === key);
+  if (!preset) return;
+  document.getElementById("rekapFrom").value = preset.from();
+  document.getElementById("rekapTo").value = todayStr();
+  renderRekap();
+}
+function rekapRange() {
+  return { from: document.getElementById("rekapFrom").value, to: document.getElementById("rekapTo").value };
+}
+function fmtShortDate(dateStr) {
+  return dateStr ? dateStr.split("-").reverse().join("/") : "-";
+}
+function rekapPeriodLabel(from, to) {
+  if (!from && !to) return "Semua tanggal";
+  if (from === to) return fmtDateLabel(from);
+  return `${fmtShortDate(from)} – ${fmtShortDate(to)}`;
+}
+function logsInRange(from, to) {
+  return data.logs.filter(l => {
+    const d = l && logDateStr(l.time);
+    return d && (!from || d >= from) && (!to || d <= to);
+  });
+}
+function logItems(l) {
+  if (Array.isArray(l.items) && l.items.length) return l.items.filter(Boolean);
+  return (l.ngItems || []).map(label => ({ label, val: "NG", note: l.note, repairs: [] }));
+}
+function rekapStats(logs) {
+  const findings = [];
+  const bySection = new Map();
+  logs.forEach(l => {
+    const ngItems = logItems(l).filter(it => it.val === "NG");
+    ngItems.forEach(it => {
+      const repairs = Array.isArray(it.repairs) ? it.repairs : [];
+      findings.push({ log: l, item: it, repaired: it.repairStatus === "SELESAI", lastRepair: repairs[repairs.length - 1] || null });
     });
-    return { open: open, closed: closed };
-  }
-
-  const totalCek = logs.length;
-  const totalNg = logs.filter(l => l.hasIssue).length;
-  const pctBersih = totalCek ? Math.round((1 - totalNg / totalCek) * 100) : 0;
-  let totalOpen = 0;
-  let totalClosed = 0;
-  logs.forEach(l => {
-    const st = ngStatus(l);
-    totalOpen += st.open;
-    totalClosed += st.closed;
+    if (!bySection.has(l.section)) bySection.set(l.section, new Map());
+    const floors = bySection.get(l.section);
+    const floor = Number(l.floor);
+    if (!floors.has(floor)) floors.set(floor, { floor, total: 0, clean: 0, issue: 0, ng: 0 });
+    const row = floors.get(floor);
+    row.total++;
+    if (l.hasIssue) row.issue++; else row.clean++;
+    row.ng += ngItems.length;
   });
-
-  document.getElementById("rekapStats").innerHTML = `
-    <div class="bg-white rounded-xl p-3 border border-slate-200">
-      <div class="text-[11px] text-slate-500">Total Cek</div>
-      <div class="text-2xl font-bold">${totalCek}</div>
-    </div>
-    <div class="bg-white rounded-xl p-3 border border-slate-200">
-      <div class="text-[11px] text-slate-500">Bersih</div>
-      <div class="text-2xl font-bold text-emerald-600">${totalCek - totalNg}</div>
-    </div>
-    <div class="bg-white rounded-xl p-3 border border-slate-200">
-      <div class="text-[11px] text-slate-500">Cek dengan Temuan</div>
-      <div class="text-2xl font-bold text-rose-600">${totalNg}</div>
-      <div class="text-[9px] text-slate-400 mt-0.5">${totalClosed} NG sudah selesai</div>
-    </div>
-    <div class="bg-white rounded-xl p-3 border border-slate-200">
-      <div class="text-[11px] text-slate-500">NG Belum Selesai</div>
-      <div class="text-2xl font-bold text-amber-600">${totalOpen}</div>
-    </div>
-    <div class="bg-white rounded-xl p-3 border border-slate-200">
-      <div class="text-[11px] text-slate-500">% Bersih</div>
-      <div class="text-2xl font-bold text-blue-600">${pctBersih}%</div>
-    </div>`;
-
-  const perSection = {}, perFloor = {}, perArea = {}, perCombo = {};
-  logs.forEach(l => {
-    if (!perSection[l.section]) perSection[l.section] = { total: 0, ng: 0 };
-    perSection[l.section].total++; if (l.hasIssue) perSection[l.section].ng++;
-    if (!perFloor[l.floor]) perFloor[l.floor] = { total: 0, ng: 0 };
-    perFloor[l.floor].total++; if (l.hasIssue) perFloor[l.floor].ng++;
-    const areaKey = `${l.section} · ${(l.area || "-").trim()}`;
-    if (!perArea[areaKey]) perArea[areaKey] = { total: 0, ng: 0 };
-    perArea[areaKey].total++; if (l.hasIssue) perArea[areaKey].ng++;
-    const ck = dk(l.section, l.floor);
-    if (!perCombo[ck]) perCombo[ck] = { section: l.section, floor: l.floor, total: 0, ng: 0 };
-    perCombo[ck].total++; if (l.hasIssue) perCombo[ck].ng++;
-  });
-
-  const sk = Object.keys(perSection);
-  document.getElementById("rekapPerSection").innerHTML = sk.length === 0
-    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
-    : sk.map(k => {
-        const d = perSection[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
-        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
-          <div class="font-medium">${esc(k)}</div>
-          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
-        </div>`;
-      }).join("");
-
-  const fk = Object.keys(perFloor).sort((a, b) => a - b);
-  document.getElementById("rekapPerFloor").innerHTML = fk.length === 0
-    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
-    : fk.map(k => {
-        const d = perFloor[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
-        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
-          <div class="font-medium">Lantai ${k}</div>
-          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
-        </div>`;
-      }).join("");
-
-  const ak = Object.keys(perArea).sort();
-  document.getElementById("rekapPerArea").innerHTML = ak.length === 0
-    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
-    : ak.map(k => {
-        const d = perArea[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
-        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
-          <div class="font-medium text-xs">${esc(k)}</div>
-          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
-        </div>`;
-      }).join("");
-
-  const ck = Object.values(perCombo).sort((a, b) => a.section.localeCompare(b.section) || a.floor - b.floor);
-  document.getElementById("rekapPerCombo").innerHTML = ck.length === 0
-    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
-    : ck.map(d => {
-        const pct = Math.round((1 - d.ng / d.total) * 100);
-        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
-          <div class="font-medium">${esc(d.section)} <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">L${d.floor}</span></div>
-          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
-        </div>`;
-      }).join("");
-
-  const ngLogs = logs.filter(l => l.hasIssue);
-  document.getElementById("rekapTemuan").innerHTML = ngLogs.length === 0
-    ? `<div class="text-xs text-slate-500 italic">Tidak ada temuan.</div>`
-    : ngLogs.sort((a, b) => new Date(b.time) - new Date(a.time)).map(l => {
-        const st = ngStatus(l);
-        return `
-        <div class="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs">
-          <div class="flex justify-between gap-2">
-            <div class="font-semibold text-rose-800">${esc(l.section)} · L${l.floor}</div>
-            <div class="text-rose-600">${fmtDateTime(l.time)}</div>
-          </div>
-          <div class="text-rose-700 mt-0.5"><b>${esc(l.area || '-')}</b> · ${esc(l.officer)}</div>
-          <div class="text-rose-800 mt-1">• ${(l.ngItems || []).map(esc).join("<br>• ")}</div>
-          ${(st.open || st.closed) ? `
-            <div class="flex flex-wrap gap-1 mt-1.5 text-[10px] font-bold">
-              ${st.open ? `<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">${st.open} belum selesai</span>` : ""}
-              ${st.closed ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">${st.closed} selesai</span>` : ""}
-            </div>` : ""}
-          ${l.note ? `<div class="italic mt-1 text-rose-700">"${esc(l.note)}"</div>` : ""}
-        </div>`;
-      }).join("");
+  const order = name => (data.sectionMeta[name] ? data.sectionMeta[name].sortOrder : 9999);
+  const sectionRows = [...bySection.entries()]
+    .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
+    .map(([section, floors]) => {
+      const floorRows = [...floors.values()].sort((a, b) => a.floor - b.floor);
+      const sum = key => floorRows.reduce((n, r) => n + r[key], 0);
+      return { section, floors: floorRows, total: sum("total"), clean: sum("clean"), issue: sum("issue"), ng: sum("ng") };
+    });
+  const total = logs.length;
+  const withIssue = logs.filter(l => l.hasIssue).length;
+  const clean = total - withIssue;
+  return {
+    total, clean, withIssue,
+    pct: total ? Math.round(clean / total * 100) : 0,
+    findings,
+    open: findings.filter(f => !f.repaired).length,
+    sections: sectionRows,
+  };
+}
+function pctOf(part, total) {
+  return total ? Math.round(part / total * 100) : 0;
 }
 
-/* ============ EXPORT CSV ============ */
-function exportCSV() {
-  if (data.logs.length === 0) { alert("Belum ada data."); return; }
-  const from = document.getElementById("rekapFrom").value;
-  const to = document.getElementById("rekapTo").value;
-  let logs = [...data.logs];
-  if (from) logs = logs.filter(l => logDateStr(l.time) >= from);
-  if (to)   logs = logs.filter(l => logDateStr(l.time) <= to);
+function renderRekap() {
+  const { from, to } = rekapRange();
+  const today = todayStr();
+  document.getElementById("rekapQuick").innerHTML = REKAP_PRESETS.map(p => {
+    const active = from === p.from() && to === today;
+    return `<button onclick="setRekapPreset('${p.key}')" class="shrink-0 text-sm h-9 px-3 rounded-lg border font-semibold ${active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"}">${p.label}</button>`;
+  }).join("");
 
-  const rows = [["Tanggal","Jam","Bagian","Lantai","Area Kerja","Petugas","Status","Jumlah NG","Item NG","Catatan","Revisi","Waktu Revisi"]];
-  logs.forEach(l => {
-    rows.push([
-      logDateStr(l.time), fmtTime(l.time),
-      l.section, l.floor, l.area || "", l.officer,
-      l.hasIssue ? "TEMUAN" : "BERSIH",
-      l.ngCount || 0,
-      (l.ngItems || []).join(" | "),
-      l.note || "",
-      l.revisionCount || 0,
-      l.revisedAt ? fmtDateTime(l.revisedAt) : "",
-    ]);
-  });
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `rekap-cek-area-${todayStr()}.csv`;
-  a.click();
+  const stats = rekapStats(logsInRange(from, to));
+  const tile = (label, value, tone, sub) => {
+    const tones = {
+      slate: "bg-slate-50 text-slate-900",
+      emerald: "bg-emerald-50 text-emerald-800",
+      rose: "bg-rose-50 text-rose-800",
+      amber: "bg-amber-50 text-amber-800",
+    };
+    return `
+      <div class="rounded-xl px-3 py-2.5 ${tones[tone]}">
+        <div class="text-[11px] font-semibold opacity-80">${label}</div>
+        <div class="text-2xl font-bold leading-tight tabular-nums">${value}</div>
+        ${sub ? `<div class="text-[11px] opacity-75">${sub}</div>` : ""}
+      </div>`;
+  };
+  const headline = stats.total
+    ? `Ada <b>${stats.total} cek</b>: <span class="text-emerald-700">${stats.clean} bersih</span>, <span class="text-rose-700">${stats.withIssue} ada temuan</span>.`
+    : "Belum ada cek di periode ini.";
+  const followUp = stats.open
+    ? `<p class="text-sm text-amber-800 mt-1">${stats.open} item NG belum diperbaiki. Lihat daftar temuan di bawah.</p>`
+    : stats.findings.length ? `<p class="text-sm text-emerald-700 mt-1">Semua temuan sudah diperbaiki.</p>` : "";
+  document.getElementById("rekapSummary").innerHTML = `
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="text-[11px] uppercase tracking-widest font-bold text-slate-500">Periode ${esc(rekapPeriodLabel(from, to))}</div>
+      <p class="text-base text-slate-800 mt-1">${headline}</p>
+      ${followUp}
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+        ${tile("Total cek", stats.total, "slate")}
+        ${tile("Bersih", stats.clean, "emerald", `${stats.pct}% dari total cek`)}
+        ${tile("Ada temuan", stats.withIssue, "rose", `${stats.findings.length} item NG`)}
+        ${tile("NG belum diperbaiki", stats.open, stats.open ? "amber" : "slate")}
+      </div>
+    </div>`;
+
+  const pctCell = (part, total) => {
+    const pct = pctOf(part, total);
+    return `
+      <div class="flex items-center gap-2 justify-end">
+        <div class="hidden sm:block w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${pct === 100 ? "bg-emerald-500" : "bg-amber-500"}" style="width:${pct}%"></div></div>
+        <span class="tabular-nums font-semibold ${pct === 100 ? "text-emerald-700" : "text-amber-700"}">${pct}%</span>
+      </div>`;
+  };
+  const rowHtml = (label, r, isSub) => `
+    <tr class="${isSub ? "text-slate-600" : "font-semibold text-slate-900 border-t border-slate-200"}">
+      <td class="py-2 pr-2 ${isSub ? "pl-4" : ""}">${label}</td>
+      <td class="py-2 px-2 text-right tabular-nums">${r.total}</td>
+      <td class="py-2 px-2 text-right tabular-nums text-emerald-700">${r.clean}</td>
+      <td class="py-2 px-2 text-right tabular-nums ${r.issue ? "text-rose-700" : ""}">${r.issue}</td>
+      <td class="py-2 pl-2">${pctCell(r.clean, r.total)}</td>
+    </tr>`;
+  document.getElementById("rekapTable").innerHTML = stats.sections.length
+    ? `<table class="w-full text-xs sm:text-sm">
+        <thead>
+          <tr class="text-[11px] uppercase tracking-wide text-slate-500">
+            <th class="text-left font-semibold pb-2 pr-2">Bagian</th>
+            <th class="text-right font-semibold pb-2 px-2">Cek</th>
+            <th class="text-right font-semibold pb-2 px-2">Bersih</th>
+            <th class="text-right font-semibold pb-2 px-2">Ada temuan</th>
+            <th class="text-right font-semibold pb-2 pl-2">% Bersih</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stats.sections.map(s => s.floors.length > 1
+            ? rowHtml(esc(s.section), s, false) + s.floors.map(f => rowHtml(`Lantai ${f.floor}`, f, true)).join("")
+            : rowHtml(`${esc(s.section)} <span class="font-normal text-slate-500">· Lantai ${s.floors[0].floor}</span>`, s, false)
+          ).join("")}
+        </tbody>
+      </table>`
+    : `<div class="text-xs text-slate-500">Belum ada data di periode ini.</div>`;
+
+  const findings = [...stats.findings].sort((a, b) =>
+    (a.repaired - b.repaired) || (new Date(b.item.time || b.log.time) - new Date(a.item.time || a.log.time)));
+  document.getElementById("rekapTemuan").innerHTML = findings.length
+    ? findings.map(({ log, item, repaired, lastRepair }) => {
+        const note = item.note || log.note || "";
+        const photo = item.photo && item.photo.thumb ? item.photo : null;
+        return `
+          <div class="rounded-xl border ${repaired ? "border-slate-200" : "border-amber-300 bg-amber-50/50"} p-3 flex gap-3">
+            ${photo ? `<img src="${esc(photo.thumb)}" data-url="${esc(photo.view || photo.thumb)}" onclick="openPhotoUrl(this.dataset.url)" onerror="this.style.display='none'" alt="Foto temuan" class="w-14 h-14 rounded-lg object-cover border border-slate-300 cursor-pointer shrink-0">` : ""}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <div class="font-semibold text-sm text-slate-900 leading-snug">${esc(item.label || "-")}</div>
+                <span class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded ${repaired ? "bg-emerald-100 text-emerald-700" : "bg-amber-200 text-amber-900"}">${repaired ? "Sudah diperbaiki" : "Belum diperbaiki"}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5">${esc(log.section)} · Lantai ${log.floor} · ${fmtDateTime(item.time || log.time)} · oleh ${esc(item.officer || log.officer || "-")}</div>
+              ${note ? `<div class="text-xs text-rose-800 mt-1.5"><b>Temuan:</b> ${esc(note)}</div>` : ""}
+              ${repaired && lastRepair ? `<div class="text-xs text-emerald-800 mt-1"><b>Perbaikan:</b> ${esc(lastRepair.note || "-")} · ${esc(lastRepair.officer || "-")}, ${fmtDateTime(lastRepair.time)}</div>` : ""}
+              ${!repaired && item.id ? `<button data-log="${esc(log.id)}" data-item="${esc(item.id)}" onclick="openRepairForm(this.dataset.log, this.dataset.item)" class="mt-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 px-3 h-8 rounded-lg">Catat Perbaikan</button>` : ""}
+            </div>
+          </div>`;
+      }).join("")
+    : `<div class="text-xs text-slate-500">Tidak ada temuan di periode ini.</div>`;
+}
+
+const XLSX_URL = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.mini.min.js";
+let xlsxPromise = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromise) {
+    xlsxPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = XLSX_URL;
+      script.onload = () => resolve(window.XLSX);
+      script.onerror = () => { xlsxPromise = null; reject(new Error("Library Excel gagal dimuat. Periksa koneksi internet.")); };
+      document.head.appendChild(script);
+    });
+  }
+  return xlsxPromise;
+}
+function excelDate(iso) {
+  const d = logDateStr(iso);
+  if (!d) return "";
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(y, m - 1, day);
+}
+function photoUrl(photo) {
+  return photo ? (photo.view || photo.thumb || "") : "";
+}
+function buildExcelWorkbook(XLSX, from, to) {
+  const logs = logsInRange(from, to).sort((a, b) => new Date(a.time) - new Date(b.time));
+  const stats = rekapStats(logs);
+
+  const summaryRows = [
+    ["Rekap Cek Area Kerja"],
+    ["Periode", rekapPeriodLabel(from, to)],
+    ["Dibuat", fmtDateTime(new Date())],
+    [],
+    ["Total cek", stats.total],
+    ["Bersih", stats.clean],
+    ["Ada temuan", stats.withIssue],
+    ["Jumlah item NG", stats.findings.length],
+    ["NG belum diperbaiki", stats.open],
+    ["% Bersih", `${stats.pct}%`],
+    [],
+    ["Bagian", "Lantai", "Cek", "Bersih", "Ada temuan", "Item NG", "% Bersih"],
+  ];
+  stats.sections.forEach(s => s.floors.forEach(f => {
+    summaryRows.push([s.section, f.floor, f.total, f.clean, f.issue, f.ng, `${pctOf(f.clean, f.total)}%`]);
+  }));
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+  summarySheet["!cols"] = [{ wch: 24 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 10 }];
+
+  const header = ["No", "Tanggal", "Jam", "Bagian", "Lantai", "Petugas", "Item", "Hasil",
+    "Catatan Temuan", "Status Perbaikan", "Diperbaiki Oleh", "Waktu Perbaikan", "Catatan Perbaikan", "Foto Temuan", "Foto Perbaikan"];
+  const widths = [5, 11, 7, 20, 7, 16, 46, 7, 32, 17, 16, 18, 32, 12, 14];
+  const entries = [];
+  logs.forEach(l => logItems(l).forEach(it => {
+    const time = it.time || l.time;
+    const isNg = it.val === "NG";
+    const repairs = Array.isArray(it.repairs) ? it.repairs : [];
+    const repair = repairs[repairs.length - 1] || null;
+    const photo = photoUrl(it.photo);
+    const repairPhoto = repair ? photoUrl(repair.photo) : "";
+    entries.push({
+      isNg, photo, repairPhoto,
+      row: [
+        0, excelDate(time), fmtTime(time, { hour: "2-digit", minute: "2-digit" }),
+        l.section, Number(l.floor), it.officer || l.officer || "", it.label || it.id || "", isNg ? "NG" : "OK",
+        isNg ? (it.note || l.note || "") : "",
+        isNg ? (it.repairStatus === "SELESAI" ? "Sudah diperbaiki" : "Belum diperbaiki") : "",
+        repair ? repair.officer || "" : "", repair ? fmtDateTime(repair.time) : "", repair ? repair.note || "" : "",
+        photo ? "Lihat foto" : "", repairPhoto ? "Lihat foto" : "",
+      ],
+    });
+  }));
+  const sheetFrom = list => {
+    const rows = list.map((e, i) => [i + 1, ...e.row.slice(1)]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows], { cellDates: true, dateNF: "dd/mm/yyyy" });
+    list.forEach((e, i) => {
+      if (e.photo) ws[XLSX.utils.encode_cell({ r: i + 1, c: 13 })].l = { Target: e.photo };
+      if (e.repairPhoto) ws[XLSX.utils.encode_cell({ r: i + 1, c: 14 })].l = { Target: e.repairPhoto };
+    });
+    ws["!cols"] = widths.map(wch => ({ wch }));
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length, 1), c: header.length - 1 } }) };
+    return ws;
+  };
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan");
+  XLSX.utils.book_append_sheet(workbook, sheetFrom(entries), "Detail Pengecekan");
+  XLSX.utils.book_append_sheet(workbook, sheetFrom(entries.filter(e => e.isNg)), "Temuan NG");
+  return { workbook, count: logs.length };
+}
+async function exportExcel() {
+  const { from, to } = rekapRange();
+  if (!logsInRange(from, to).length) { toast("Tidak ada data di periode ini.", "amber"); return; }
+  const btn = document.getElementById("btnExport");
+  btn.disabled = true;
+  btn.classList.add("opacity-60");
+  try {
+    const XLSX = await loadXlsx();
+    const { workbook } = buildExcelWorkbook(XLSX, from, to);
+    XLSX.writeFile(workbook, `rekap-cek-area_${from || "awal"}_sd_${to || todayStr()}.xlsx`);
+    toast("File Excel diunduh.", "emerald");
+  } catch (err) {
+    toast("Gagal membuat Excel: " + (err.message || "unknown error"), "rose");
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("opacity-60");
+  }
 }
 
 /* ============ RENDER ALL ============ */
@@ -2893,7 +3012,7 @@ function renderAll() {
 /* ============ INIT & POLLING ============ */
 document.getElementById("filterDate").addEventListener("change", () => { expandedLogId = null; renderRiwayat(); });
 document.getElementById("filterDate").value = todayStr();
-document.getElementById("rekapFrom").value = todayStr(new Date(Date.now() - 30*86400000));
+document.getElementById("rekapFrom").value = todayStr(new Date(Date.now() - 29*86400000));
 document.getElementById("rekapTo").value = todayStr();
 
 let lastMetaSig = "";
