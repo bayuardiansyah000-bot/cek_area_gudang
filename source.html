@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>CRA · Cek Area Kerja</title>
 <meta name="theme-color" content="#ffffff" />
 <link rel="icon" href="/assets/favicon.ico" sizes="any" />
@@ -33,7 +33,13 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/motion@14.14.0/dist/motion.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.js"></script>
 <style>
+  @media (max-width: 639px) {
+    input, select, textarea { font-size: 16px !important; }
+  }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
   h1, h2, h3 { font-family: Outfit, "Work Sans", system-ui, sans-serif; }
   :focus-visible { outline: 2px solid #1c1c1a; outline-offset: 2px; }
   button, label[for], label:has(input[type="file"]) { cursor: pointer; }
@@ -190,7 +196,7 @@
       </div>
     </section>
 
-    <button id="btnSubmit" onclick="submit()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition active:scale-[0.99]">
+    <button id="btnSubmit" onclick="submit()" class="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:static z-20 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition active:scale-[0.99]">
       Simpan Hasil Pengecekan
     </button>
   </div>
@@ -327,7 +333,7 @@
   </aside>
 </main>
 
-<nav class="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 shadow-lg z-30">
+<nav class="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 shadow-lg z-30 pb-[env(safe-area-inset-bottom)]">
   <div class="grid grid-cols-5">
     <button data-nav="cek" onclick="switchView('cek')" class="py-2.5 flex flex-col items-center gap-0.5 tab-active nav-active relative">
       <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center relative">
@@ -637,8 +643,21 @@ async function gasGetMeta() {
   const res = await fetch(GAS_URL + "?meta=1&t=" + Date.now(), { method: "GET", cache: "no-store" });
   return readJsonResponse(res);
 }
+const realtimeClient = BACKEND === "supabase" && window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+const changesChannel = realtimeClient ? realtimeClient.channel("cekarea-changes") : null;
+const WRITE_ACTIONS = new Set(["addLog", "updateLog", "addRepair", "saveSection", "deleteSection", "saveItem", "deleteItem", "purgeLogs"]);
+function announceChange() {
+  if (!changesChannel) return;
+  changesChannel.send({ type: "broadcast", event: "changed", payload: {} }).catch(err => console.warn("Gagal mengirim sinyal realtime:", err));
+}
 async function gasPost(action, payload, password) {
-  if (BACKEND === "supabase") return supabasePost_(action, payload, password);
+  if (BACKEND === "supabase") {
+    const json = await supabasePost_(action, payload, password);
+    if (json && json.ok && WRITE_ACTIONS.has(action)) announceChange();
+    return json;
+  }
   const res = await fetch(GAS_URL, {
     method: "POST",
     // PENTING: pakai text/plain, bukan application/json — supaya browser tidak kirim
@@ -867,16 +886,15 @@ function renderPending() {
   const banner = document.getElementById("pendingBanner");
   if (pending.length === 0) { banner.classList.add("hidden"); banner.innerHTML = ""; return; }
   banner.classList.remove("hidden");
-  banner.className = "slide-down rounded-xl bg-amber-50 border-2 border-amber-300 p-3";
+  banner.className = "slide-down rounded-xl bg-amber-50 border border-amber-300 p-3";
   banner.innerHTML = `
     <div class="flex items-start gap-2.5">
-      <div class="w-8 h-8 rounded-full bg-amber-200 grid place-items-center text-lg shrink-0">!</div>
-      <div class="flex-1">
+      <div class="hidden sm:grid w-8 h-8 rounded-full bg-amber-200 place-items-center text-lg shrink-0">!</div>
+      <div class="flex-1 min-w-0">
         <div class="font-bold text-sm text-amber-900">${pending.length} dari ${total} cek belum selesai hari ini</div>
-        <div class="text-xs text-amber-800 mt-0.5">Cek yang belum masuk:</div>
-        <div class="flex flex-wrap gap-1.5 mt-2">
+        <div class="flex sm:flex-wrap gap-1.5 mt-2 overflow-x-auto no-scrollbar -mx-3 px-3 sm:mx-0 sm:px-0">
           ${pending.map(p => `
-            <button data-sec="${esc(p.section)}" data-fl="${p.floor}" onclick="jumpTo(this.dataset.sec, Number(this.dataset.fl))" class="text-[11px] bg-white border border-amber-400 text-amber-900 font-semibold px-2.5 py-1 rounded-lg hover:bg-amber-100">
+            <button data-sec="${esc(p.section)}" data-fl="${p.floor}" onclick="jumpTo(this.dataset.sec, Number(this.dataset.fl))" class="shrink-0 whitespace-nowrap text-xs bg-white border border-amber-400 text-amber-900 font-semibold px-3 h-9 rounded-lg hover:bg-amber-100">
               ${esc(p.section)} · L${p.floor} →
             </button>`).join("")}
         </div>
@@ -1274,6 +1292,7 @@ function switchView(v) {
   doSwitchView(v);
 }
 
+const LOCK_ICON = `<svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Diproteksi PIN"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
 /* ============ RENDER CEK ============ */
 function renderSectionTabs() {
   const el = document.getElementById("sectionTabs");
@@ -1293,7 +1312,7 @@ function renderSectionTabs() {
         class="rounded-xl p-3 text-left border-2 transition relative ${active ? 'border-blue-600 bg-blue-50 shadow' : 'border-slate-200 bg-white hover:border-blue-300'}">
         ${pendingFloors > 0 && !locked ? `<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 pulse-dot"></span>` : ""}
         <div class="font-bold text-sm flex items-center gap-1 ${active ? 'text-blue-700' : 'text-slate-800'}">
-          ${locked ? 'PIN ' : ''}${esc(name)}
+          ${locked ? LOCK_ICON : ''}${esc(name)}
         </div>
         <div class="flex flex-wrap gap-1 mt-1.5">${badges}</div>
       </button>`;
@@ -1386,12 +1405,12 @@ function renderItems() {
     const val = currentValues[item.id] || "";
     const number = items.indexOf(item) + 1;
     return `
-      <div class="px-4 py-3 flex items-start justify-between gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
+      <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
         <div class="flex-1 flex gap-2 text-sm text-slate-800">
           <span class="w-6 shrink-0 text-right tabular-nums font-semibold text-slate-400">${number}.</span>
           <span class="min-w-0">${esc(item.label)}</span>
         </div>
-        <div class="flex items-center gap-1 shrink-0">${photoButton(item.id)}${buttons(item.id, val)}</div>
+        <div class="flex items-center gap-1.5 shrink-0 w-full sm:w-auto pl-8 sm:pl-0">${photoButton(item.id)}${buttons(item.id, val)}</div>
       </div>`;
   }).join("");
 
@@ -1407,7 +1426,7 @@ function updateResetVisibility() {
   document.getElementById("btnReset").classList.toggle("hidden", !hasContent);
 }
 function buttons(key, val) {
-  const base = "text-sm min-w-[3rem] h-10 px-3 rounded-lg border font-semibold transition select-none";
+  const base = "flex-1 sm:flex-none text-sm min-w-[3rem] h-10 px-3 rounded-lg border font-semibold transition select-none";
   const style = {
     OK: val === "OK" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50",
     NG: val === "NG" ? "bg-rose-600 text-white border-rose-600"       : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50",
@@ -2160,11 +2179,11 @@ function renderKelola() {
   el.innerHTML = names.map(n => {
     const active = n === kelolaSection;
     const count = getItems(n).length;
-    const locked = data.pinSections[n] ? 'PIN ' : '';
+    const locked = data.pinSections[n] ? LOCK_ICON : '';
     return `
       <button data-sec="${esc(n)}" onclick="selectKelolaSection(this.dataset.sec)"
         class="rounded-xl p-3 text-left border-2 transition ${active ? 'border-blue-600 bg-blue-50 shadow' : 'border-slate-200 bg-white hover:border-blue-300'}">
-        <div class="font-bold text-sm ${active ? 'text-blue-700' : 'text-slate-800'}">${locked}${esc(n)}</div>
+        <div class="font-bold text-sm flex items-center gap-1 ${active ? 'text-blue-700' : 'text-slate-800'}">${locked}${esc(n)}</div>
         <div class="text-[11px] text-slate-500 mt-1">${count} item</div>
       </button>`;
   }).join("");
@@ -2856,7 +2875,7 @@ document.getElementById("rekapTo").value = todayStr();
 let lastMetaSig = "";
 let lastFullRefresh = 0;
 let metaSupported = true;
-const META_POLL_MS = 60 * 1000;
+const META_POLL_MS = 20 * 1000;
 const FULL_REFRESH_MS = 5 * 60 * 1000;
 
 function metaSignature(meta) {
@@ -2884,6 +2903,10 @@ async function refreshFromServer(opts = {}) {
   }
   if (!document.getElementById("view-laporan").classList.contains("hidden")) {
     renderLaporan();
+  }
+  const kelolaView = document.getElementById("view-kelola");
+  if (!kelolaView.classList.contains("hidden") && !kelolaView.contains(document.activeElement)) {
+    renderKelola();
   }
   lastFullRefresh = Date.now();
   return true;
@@ -2962,6 +2985,18 @@ document.addEventListener("visibilitychange", () => {
 
   await primeMeta();
   setInterval(pollMeta, META_POLL_MS);
+
+  if (changesChannel) {
+    let realtimeTimer = null;
+    changesChannel
+      .on("broadcast", { event: "changed" }, () => {
+        clearTimeout(realtimeTimer);
+        realtimeTimer = setTimeout(() => refreshFromServer({ silent: true }), 300);
+      })
+      .subscribe(status => {
+        if (status === "SUBSCRIBED") pollMeta();
+      });
+  }
 })();
 </script>
 </body>
