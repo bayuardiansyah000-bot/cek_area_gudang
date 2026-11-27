@@ -1223,7 +1223,7 @@ function switchView(v) {
         toast(res.error || "Gagal login admin.", "rose");
         return false;
       }
-      if (res.result && res.result.valid) {
+      if (res.result && (res.result.valid || res.result.ok)) {
         sessionStorage.setItem("adminUnlocked", "1");
         sessionStorage.setItem("adminPw", input);
         doSwitchView("kelola");
