@@ -2746,10 +2746,19 @@ function logItems(l) {
   if (Array.isArray(l.items) && l.items.length) return l.items.filter(Boolean);
   return (l.ngItems || []).map(label => ({ label, val: "NG", note: l.note, repairs: [] }));
 }
+function firstLogDate() {
+  return data.logs.map(l => logDateStr(l.time)).filter(Boolean).sort()[0] || "";
+}
+function targetSinceNote(from) {
+  const first = firstLogDate();
+  return first && (!from || from < first) ? ` (dihitung sejak data pertama, ${fmtShortDate(first)})` : "";
+}
 function countDays(from, to) {
   const today = todayStr();
   const end = to && to < today ? to : today;
-  const start = from || data.logs.map(l => logDateStr(l.time)).filter(Boolean).sort()[0] || end;
+  const first = firstLogDate();
+  if (!first) return 0;
+  const start = from && from > first ? from : first;
   if (start > end) return 0;
   return Math.round((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1;
 }
@@ -2858,7 +2867,7 @@ function renderRekap() {
     </div>`;
 
   document.getElementById("rekapTableNote").textContent = stats.days > 1
-    ? `Angka x/y = item yang sudah diisi OK/NG dari target. Target = jumlah item × ${stats.days} hari.`
+    ? `Angka x/y = item yang sudah diisi OK/NG dari target. Target = jumlah item × ${stats.days} hari${targetSinceNote(from)}.`
     : "Angka x/y = item yang sudah diisi OK/NG dari jumlah item yang wajib dicek.";
   const toneClass = { done: "text-emerald-700", partial: "text-amber-700", none: "text-rose-700" };
   const barClass = { done: "bg-emerald-500", partial: "bg-amber-500", none: "bg-slate-200" };
@@ -3024,7 +3033,7 @@ async function buildExcelWorkbook(ExcelJS, from, to) {
 
   const tableTop = 4 + kpis.length + 1;
   const note = summary.getCell(tableTop, 1);
-  note.value = stats.days > 1 ? `Target = jumlah item × ${stats.days} hari` : "Target = jumlah item yang wajib dicek";
+  note.value = stats.days > 1 ? `Target = jumlah item × ${stats.days} hari${targetSinceNote(from)}` : "Target = jumlah item yang wajib dicek";
   note.font = { italic: true, color: { argb: XL.muted } };
   const head = summary.getRow(tableTop + 1);
   head.values = ["Bagian", "Lantai", "Dicek", "Target", "Belum dicek", "OK", "NG", "Progres"];
