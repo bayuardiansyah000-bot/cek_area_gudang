@@ -1428,7 +1428,8 @@ function renderItems() {
   } else {
     hiddenIds = todayFilledIds(currentSection, currentFloor);
   }
-  const pendingItems = items.filter(item => !hiddenIds.has(String(item.id)));
+  const pendingItems = items.filter(item =>
+    !hiddenIds.has(String(item.id)) && (editingLogId || !autoSavingIds.has(autoSaveKey(currentSection, currentFloor, item.id))));
 
   if (pendingItems.length === 0) {
     list.innerHTML = `<div class="text-center text-slate-500 py-12 text-sm">
@@ -1443,7 +1444,7 @@ function renderItems() {
     const val = currentValues[item.id] || "";
     const number = items.indexOf(item) + 1;
     return `
-      <div class="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
+      <div data-item-row="${esc(item.id)}" class="px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
         <div class="flex-1 flex gap-2 text-sm text-slate-800">
           <span class="w-6 shrink-0 text-right tabular-nums font-semibold text-slate-400">${number}.</span>
           <span class="min-w-0">${esc(item.label)}</span>
@@ -1910,7 +1911,89 @@ function setValue(key, val) {
   if (currentValues[key] === val) delete currentValues[key];
   else currentValues[key] = val;
   persistDraft();
+  if (val === "OK" && currentValues[key] === "OK" && !editingLogId) {
+    queueAutoSave(key);
+    return;
+  }
   renderItems(); renderSummary();
+}
+
+const autoSavingIds = new Set();
+const autoSaveQueue = new Map();
+let autoSaveTimer = null;
+let autoSaveChain = Promise.resolve();
+function autoSaveKey(section, floor, id) {
+  return `${dk(section, floor)}|${id}`;
+}
+function slideOutRow(id) {
+  const row = [...document.querySelectorAll("#itemList [data-item-row]")].find(el => el.dataset.itemRow === String(id));
+  if (!row || reduceMotion.matches || !window.Motion) return Promise.resolve();
+  return Motion.animate(row, { x: [0, -row.offsetWidth], opacity: [1, 0] }, { duration: 0.28, ease: "easeIn" }).finished;
+}
+async function queueAutoSave(id) {
+  const officerEl = document.getElementById("officer");
+  const areaEl = document.getElementById("area");
+  if (!officerEl.value.trim() || !areaEl.value.trim()) {
+    delete currentValues[id];
+    persistDraft();
+    renderItems(); renderSummary();
+    toast("Isi Nama Petugas dan Area Kerja dulu, lalu tekan OK lagi.", "amber");
+    (officerEl.value.trim() ? areaEl : officerEl).focus();
+    return;
+  }
+  const group = dk(currentSection, currentFloor);
+  if (!autoSaveQueue.has(group)) {
+    autoSaveQueue.set(group, { section: currentSection, floor: currentFloor, area: areaEl.value.trim(), officer: officerEl.value.trim(), ids: new Set() });
+  }
+  autoSaveQueue.get(group).ids.add(String(id));
+  autoSavingIds.add(autoSaveKey(currentSection, currentFloor, id));
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => { autoSaveChain = autoSaveChain.then(flushAutoSave); }, 500);
+  await slideOutRow(id).catch(() => {});
+  renderItems(); renderSummary();
+}
+async function flushAutoSave() {
+  const batches = [...autoSaveQueue.values()];
+  autoSaveQueue.clear();
+  for (const batch of batches) {
+    const { section, floor, area, officer, ids } = batch;
+    const draft = data.drafts[dk(section, floor)] || { values: {}, photos: {} };
+    const time = new Date().toISOString();
+    const snapshot = floorItems(section, floor)
+      .filter(item => ids.has(String(item.id)))
+      .map(item => {
+        const photo = (draft.photos || {})[item.id];
+        return {
+          id: item.id, label: item.label, val: "OK",
+          photo: photo ? { thumb: photo.thumb, view: photo.view, fileId: photo.fileId || "" } : null,
+          area, officer, note: "", time,
+        };
+      });
+    const release = () => ids.forEach(id => autoSavingIds.delete(autoSaveKey(section, floor, id)));
+    if (!snapshot.length) { release(); continue; }
+    let res;
+    try {
+      res = await gasPost("addLog", {
+        section, floor, area, officer, note: "", items: snapshot,
+        hasIssue: false, ngCount: 0, ngItems: [], pin: sessionStorage.getItem("pin_" + section) || "",
+      });
+    } catch (err) {
+      res = { ok: false, error: "Gagal terhubung ke server. Periksa koneksi internet." };
+    }
+    if (res.ok) {
+      applySavedLogLocally_(res.result, { section, floor, area, officer, note: "" }, snapshot, false);
+      ids.forEach(id => {
+        delete (draft.values || {})[id];
+        delete (draft.photos || {})[id];
+        if (section === currentSection && floor === currentFloor) { delete currentValues[id]; delete currentPhotos[id]; }
+      });
+      save();
+    } else {
+      toast(`Gagal menyimpan ${snapshot.length} item: ${res.error || ""}`, "rose");
+    }
+    release();
+  }
+  renderAll();
 }
 function persistDraft() {
   const k = dk(currentSection, currentFloor);
