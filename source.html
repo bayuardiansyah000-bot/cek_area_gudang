@@ -200,7 +200,7 @@
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center gap-2">
       <label class="text-xs font-semibold text-slate-600">Filter tanggal:</label>
       <input type="date" id="filterDate" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
-      <button onclick="clearFilter()" class="text-xs text-blue-600 hover:underline">Semua</button>
+      <button onclick="clearFilter()" class="text-xs text-blue-600 hover:underline">Hari ini</button>
     </div>
     <p class="text-[11px] text-slate-500 text-center -mt-2">Klik kartu untuk detail · tombol Revisi ada di dalam detail</p>
     <div id="riwayatList" class="space-y-3"></div>
@@ -323,7 +323,6 @@
 
   <!-- ============ SIDEBAR KANAN ============ -->
   <aside class="order-3 lg:order-none space-y-4">
-    <div id="sideSummary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"></div>
     <div id="sideActivity" class="bg-white text-slate-800 rounded-2xl p-4 border border-slate-200"></div>
   </aside>
 </main>
@@ -908,33 +907,11 @@ function renderSide() {
       <div class="text-[11px] text-slate-300 mt-2">${sisa === 0 ? "Semua bagian selesai hari ini" : `${sisa} lantai belum dicek`}</div>`;
   }
 
-  const summary = document.getElementById("sideSummary");
-  if (summary) {
-    summary.innerHTML = `
-      <div class="flex items-center gap-2 mb-3">
-        <span class="pulse-dot w-2 h-2 rounded-full bg-emerald-500"></span>
-        <h2 class="text-xs font-bold uppercase tracking-wide text-slate-600">Ringkasan Hari Ini</h2>
-      </div>
-      <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="rounded-xl bg-slate-50 py-2">
-          <div class="text-[9px] text-slate-400 font-bold">TOTAL</div>
-          <div class="text-lg font-bold text-slate-800">${total}</div>
-        </div>
-        <div class="rounded-xl bg-emerald-50 py-2">
-          <div class="text-[9px] text-emerald-600 font-bold">SELESAI</div>
-          <div class="text-lg font-bold text-emerald-700">${doneCount}</div>
-        </div>
-        <div class="rounded-xl bg-amber-50 py-2">
-          <div class="text-[9px] text-amber-600 font-bold">SISA</div>
-          <div class="text-lg font-bold text-amber-700">${sisa}</div>
-        </div>
-      </div>`;
-  }
-
   const activity = document.getElementById("sideActivity");
   if (activity) {
+    const today = todayStr();
     const recent = [...data.logs]
-      .filter(l => l && l.time)
+      .filter(l => l && l.time && logDateStr(l.time) === today)
       .sort((a, b) => new Date(b.time) - new Date(a.time))
       .slice(0, 3);
     activity.innerHTML = `
@@ -946,7 +923,7 @@ function renderSide() {
                 <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${l.hasIssue ? "bg-rose-400" : "bg-emerald-400"}"></span>
                 <span>${esc(l.officer || "-")} · ${esc(l.section || "-")} L${Number(l.floor) || "-"} · ${fmtTime(l.time)}</span>
               </div>`).join("")
-          : `<div class="text-slate-500">Belum ada aktivitas tercatat.</div>`}
+          : `<div class="text-slate-500">Belum ada aktivitas hari ini.</div>`}
       </div>`;
   }
 }
@@ -1360,29 +1337,6 @@ function renderSummary() {
     return;
   }
 
-  const logsToday = todayLogsFor(currentSection, currentFloor);
-  const lastLog = [...data.logs]
-    .filter(l => l.section === currentSection && l.floor === currentFloor)
-    .sort((a, b) => new Date(b.time) - new Date(a.time))[0];
-  let info = "";
-  if (lastLog && lastLog.id !== editingLogId) {
-    const ok = !lastLog.hasIssue;
-    info = `<div class="mt-2 rounded-lg p-2.5 border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}">
-      <div class="flex items-start justify-between gap-2">
-        <div class="flex-1 text-xs ${ok ? 'text-emerald-800' : 'text-rose-800'}">
-          ${savedIds.size > 0 ? `<div class="text-[10px] mb-1 opacity-75">${savedIds.size} item tersimpan hari ini</div>` : ''}
-          <b>Terakhir:</b> ${esc(lastLog.area || '-')}
-          <div class="opacity-75">oleh ${esc(lastLog.officer)} · ${fmtDateTime(lastLog.time)}</div>
-          ${lastLog.hasIssue ? `<div class="font-semibold mt-0.5">${lastLog.ngCount} temuan NG</div>` : ""}
-        </div>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-200 text-emerald-800' : 'bg-rose-200 text-rose-800'} font-bold whitespace-nowrap">
-          ${ok ? "BERSIH" : "TEMUAN"}
-        </span>
-      </div>
-      <div class="text-[10px] opacity-75 mt-1">Untuk mengubah hasil, buka tab <b>Riwayat</b> → detail cek → tombol Revisi.</div>
-    </div>`;
-  }
-
   const pct = total ? Math.round(filled / total * 100) : 0;
   bar.innerHTML = `
     <div class="bg-white border border-slate-200 rounded-xl p-3">
@@ -1393,7 +1347,6 @@ function renderSummary() {
       <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
         <div class="h-full ${editingLogId ? 'bg-amber-500' : 'bg-blue-500'} transition-all" style="width:${pct}%"></div>
       </div>
-      ${info}
     </div>`;
 }
 function renderItems() {
@@ -1431,9 +1384,13 @@ function renderItems() {
 
   list.innerHTML = pendingItems.map(item => {
     const val = currentValues[item.id] || "";
+    const number = items.indexOf(item) + 1;
     return `
       <div class="px-4 py-3 flex items-start justify-between gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
-        <div class="flex-1 text-sm text-slate-800">${esc(item.label)}</div>
+        <div class="flex-1 flex gap-2 text-sm text-slate-800">
+          <span class="w-6 shrink-0 text-right tabular-nums font-semibold text-slate-400">${number}.</span>
+          <span class="min-w-0">${esc(item.label)}</span>
+        </div>
         <div class="flex items-center gap-1 shrink-0">${photoButton(item.id)}${buttons(item.id, val)}</div>
       </div>`;
   }).join("");
@@ -2522,6 +2479,7 @@ function viewLogById(id) {
   const log = data.logs.find(l => l.id === id);
   if (!log) { toast("Log cek ulang tidak ditemukan.", "rose"); return; }
   expandedLogId = id;
+  document.getElementById("filterDate").value = logDateStr(log.time);
   switchView("riwayat");
   renderRiwayat();
   requestAnimationFrame(() => {
@@ -2641,7 +2599,7 @@ function renderLogDetail(l) {
     </div>`;
 }
 function clearFilter() {
-  document.getElementById("filterDate").value = "";
+  document.getElementById("filterDate").value = todayStr();
   expandedLogId = null;
   renderRiwayat();
 }
@@ -2891,6 +2849,7 @@ function renderAll() {
 
 /* ============ INIT & POLLING ============ */
 document.getElementById("filterDate").addEventListener("change", () => { expandedLogId = null; renderRiwayat(); });
+document.getElementById("filterDate").value = todayStr();
 document.getElementById("rekapFrom").value = todayStr(new Date(Date.now() - 30*86400000));
 document.getElementById("rekapTo").value = todayStr();
 
