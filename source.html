@@ -1129,6 +1129,12 @@ function renderLaporan() {
 }
 
 /* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
+const CHECK_TYPE_GROUPS = [
+  { label: "Stop Kontak Lampu", pattern: /^stop\s*kontak/i },
+  { label: "Colokan Listrik", pattern: /^colokan/i },
+  { label: "Pintu, Jendela & Rolling Door", pattern: /^(rolling\s*door|pintu|jendela)/i },
+  { label: "Lainnya", pattern: null },
+];
 function buildLaporanCekListHtml_() {
   function namaFromLabel_(label) {
     const text = String(label || "").trim();
@@ -1170,8 +1176,21 @@ function buildLaporanCekListHtml_() {
   const cellHtml = n => `
     <div class="rounded-lg bg-slate-50 px-1.5 py-1 text-[9px] leading-tight text-slate-700 break-words">${esc(n)}</div>`;
 
+  const groups = CHECK_TYPE_GROUPS.map(g => ({ label: g.label, names: [] }));
+  names.forEach(nama => {
+    const index = CHECK_TYPE_GROUPS.findIndex(g => g.pattern && g.pattern.test(nama.trim()));
+    groups[index === -1 ? groups.length - 1 : index].names.push(nama);
+  });
+
   const body = names.length
-    ? `<div class="mt-3" style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;align-items:stretch;">${names.map(cellHtml).join("")}</div>`
+    ? groups.filter(g => g.names.length).map(g => `
+        <div class="mt-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="text-[11px] font-bold text-slate-800">${esc(g.label)}</span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${g.names.length}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;align-items:stretch;">${g.names.map(cellHtml).join("")}</div>
+        </div>`).join("")
     : `<div class="mt-2 text-[11px] font-semibold text-slate-500">Belum ada item yang dicek hari ini.</div>`;
 
   return `
