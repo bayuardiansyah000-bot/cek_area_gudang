@@ -1103,14 +1103,10 @@ function renderLaporan() {
 
 /* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
 const CHECK_TYPE_GROUPS = [
-  { label: "Stop Kontak", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i },
+  { label: "Saklar Lampu", pattern: /^saklar\s*lampu/i, strip: /^saklar\s*lampu\s*/i, rename: [[/mushola/i, null]] },
   {
-    label: "Colokan Listrik", pattern: /^colokan/i, strip: /^colokan\s*(listrik\s*)?/i,
-    rename: [
-      [/^kipas/i, "Kipas Angin"],
-      [/^(charger|pc|laptop)$/i, null],
-      [/^laptop\s*&\s*kabel/i, null],
-    ],
+    label: "Stop Kontak Listrik", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(listrik\s*)?/i,
+    rename: [[/^kipas/i, "Kipas Angin"]],
   },
   {
     label: "Lainnya", pattern: null,
