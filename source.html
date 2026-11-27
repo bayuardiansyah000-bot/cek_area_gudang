@@ -138,7 +138,6 @@
         </button>
       </nav>
     </div>
-    <div id="sideProgress" class="bg-slate-900 text-white rounded-2xl p-4"></div>
   </aside>
 
   <section class="min-w-0 space-y-4">
@@ -899,27 +898,6 @@ function renderPending() {
 
 /* ============ SIDEBAR KANAN ============ */
 function renderSide() {
-  const combos = getAllCombos();
-  const done = getDoneToday();
-  const total = combos.length;
-  const doneCount = combos.filter(c => done.has(dk(c.section, c.floor))).length;
-  const sisa = Math.max(0, total - doneCount);
-  const pct = total ? Math.round((doneCount / total) * 100) : 0;
-
-  const progress = document.getElementById("sideProgress");
-  if (progress) {
-    progress.innerHTML = `
-      <div class="text-[11px] uppercase tracking-widest text-slate-400 font-bold">Progress hari ini</div>
-      <div class="mt-2 flex items-end gap-1">
-        <div class="text-3xl font-bold leading-none tabular-nums">${doneCount}</div>
-        <div class="text-sm text-slate-400 mb-0.5">/ ${total} lantai</div>
-      </div>
-      <div class="h-1.5 bg-white/15 rounded-full mt-3 overflow-hidden">
-        <div class="h-full bg-brand rounded-full" style="width:${pct}%"></div>
-      </div>
-      <div class="text-[11px] text-slate-300 mt-2">${sisa === 0 ? "Semua bagian selesai hari ini" : `${sisa} lantai belum dicek`}</div>`;
-  }
-
   const activity = document.getElementById("sideActivity");
   if (activity) {
     const today = todayStr();
