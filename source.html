@@ -1103,7 +1103,7 @@ function renderLaporan() {
 
 /* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
 const CHECK_TYPE_GROUPS = [
-  { label: "Stop Kontak", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i },
+  { label: "Stop Kontak", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i, rename: [[/mushola/i, null]] },
   {
     label: "Colokan Listrik", pattern: /^colokan/i, strip: /^colokan\s*(listrik\s*)?/i,
     rename: [
