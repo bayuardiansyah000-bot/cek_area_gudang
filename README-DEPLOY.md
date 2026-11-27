@@ -127,18 +127,31 @@ Isinya:
 
 5. Klik **Deploy**. Vercel menjalankan `node build.js` dan menyajikan `index.html`.
 
-### Cara B — Vercel CLI lokal
+### Cara B — langsung dari folder, tanpa GitHub
 
-```powershell
-cd "C:\Users\MSI-14\Downloads\deploy-vercel"
-$env:BACKEND="supabase"
-$env:SUPABASE_URL="https://<ref>.supabase.co"
-$env:SUPABASE_ANON_KEY="anon-key-anda"
-$env:SUPABASE_FUNCTION_URL="https://<ref>.supabase.co/functions/v1/cek-api"
-npx.cmd vercel --prod
+Double-click:
+
+```text
+C:\Users\MSI-14\Downloads\deploy-vercel\deploy.cmd
 ```
 
-Env var di PowerShell itu hanya untuk build lokal. Untuk deploy berikutnya, tetap simpan vals di dashboard Vercel.
+File itu menjalankan Vercel CLI dengan `--build-env`, jadi folder ini langsung
+di-upload dan konfigurasi Supabase disuntikkan saat build.
+
+Saat pertama kali, ikuti prompt:
+
+- Login Vercel → **Yes / browser akan terbuka**
+- “Set up and deploy?” → **Yes**
+- Nama project → bebas, misalnya `cekarea-online`
+- Framework → pilih **Other**
+- Build command → tekan **Enter** saja (sudah dari `vercel.json`)
+- Output directory → tekan **Enter** saja
+
+Untuk deploy berikutnya, cukup double-click `deploy.cmd` lagi.
+
+Catatan: `--build-env` berlaku untuk deployment yang dijalankan lewat file ini.
+Kalau nanti deploy dari dashboard/GitHub, tetap isi Environment Variables di
+dashboard Vercel.
 
 ---
 
