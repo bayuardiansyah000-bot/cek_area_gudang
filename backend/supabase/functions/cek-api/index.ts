@@ -291,7 +291,7 @@ function buildRows(args: {
   });
 }
 
-async function assertNotComplete(section: string, floor: number, merged: any[], date: string): Promise<void> {
+async function assertNotComplete(section: string, floor: number, date: string): Promise<void> {
   const existing = query<any[]>(
     await db
       .from("log_inspeksi")
@@ -310,11 +310,9 @@ async function assertNotComplete(section: string, floor: number, merged: any[], 
       .contains("floors", [floor]),
     "Gagal membaca master checklist",
   );
-  const expected = master.length;
   const ids = new Set<string>();
   existing.forEach((r) => ids.add(str(r.id_item)));
-  merged.forEach((it) => ids.add(str(it.id)));
-  if (expected && ids.size >= expected) {
+  if (master.length && master.every((m) => ids.has(str(m.id)))) {
     throw new Error("Bagian ini sudah dicek hari ini. Gunakan tombol Revisi di tab Riwayat.");
   }
 }
@@ -352,19 +350,19 @@ async function addLog(p: any): Promise<any> {
     "Gagal membaca log lama",
   );
   const merged = mergeItems(existing, incoming);
-  await assertNotComplete(section, floor, merged, date);
+  await assertNotComplete(section, floor, date);
 
   const sid = str(existing[0]?.id_sesi) || crypto.randomUUID();
   const idLog = `${sid}|${section}|${floor}`;
   const baseTime = str(existing[0]?.timestamp) || time;
   const shift = str(existing[0]?.shift) || "Shift 1";
   const revisionCount = num(existing[0]?.app_revision_count);
+  const otherLogIds = [...new Set(existing.map((r) => str(r.id_log)))].filter((id) => id && id !== idLog);
 
   query(
     await db
       .from("log_inspeksi")
       .delete()
-      .eq("id_sesi", sid)
       .eq("section", section)
       .eq("floor", floor)
       .eq("tanggal", date),
@@ -387,6 +385,12 @@ async function addLog(p: any): Promise<any> {
     revisionCount,
   });
   query(await db.from("log_inspeksi").insert(rows), "Gagal menyimpan log");
+  if (otherLogIds.length) {
+    query(
+      await db.from("perbaikan").update({ log_id: idLog, id_sesi: sid }).in("log_id", otherLogIds),
+      "Gagal memindahkan catatan perbaikan",
+    );
+  }
 
   return { id: idLog, time: baseTime, itemCount: merged.length, updated: existing.length > 0 };
 }
