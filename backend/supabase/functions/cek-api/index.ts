@@ -86,10 +86,112 @@ function query<T>(result: { data: T | null; error: any }, label: string): T {
   return (result.data || []) as T;
 }
 
+const PBKDF2_ITERATIONS = 100_000;
+const textEncoder = new TextEncoder();
+
+function toBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+function fromBase64(value: string): Uint8Array<ArrayBuffer> {
+  return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
+}
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+async function pbkdf2(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey("raw", textEncoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
+  return new Uint8Array(bits);
+}
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(hash)}`;
+}
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [scheme, iterations, salt, hash] = stored.split("$");
+  if (scheme !== "pbkdf2" || !num(iterations) || !salt || !hash) return false;
+  return sameBytes(await pbkdf2(password, fromBase64(salt), num(iterations)), fromBase64(hash));
+}
+
 async function requireAdmin(password: any): Promise<void> {
+  const given = str(password);
+  if (!given) throw new Error("Password admin salah.");
+  const rows = query<any[]>(
+    await db.from("app_settings").select("value").eq("key", "admin_password_hash").limit(1),
+    "Gagal membaca password admin",
+  );
+  const storedHash = str(rows[0]?.value);
+  if (storedHash) {
+    if (!(await verifyPassword(given, storedHash))) throw new Error("Password admin salah.");
+    return;
+  }
   const expected = Deno.env.get("ADMIN_PASSWORD") || "";
-  if (!expected) throw new Error("ADMIN_PASSWORD belum disetel di Edge Function.");
-  if (str(password) !== expected) throw new Error("Password admin salah.");
+  if (!expected) throw new Error("Password admin belum disetel. Atur ADMIN_PASSWORD di Edge Function.");
+  if (!sameBytes(textEncoder.encode(given), textEncoder.encode(expected))) throw new Error("Password admin salah.");
+}
+
+async function changeAdminPassword(p: any): Promise<any> {
+  await requireAdmin(p.password);
+  const newPassword = str(p.newPassword);
+  if (newPassword.length < 6 || newPassword.length > 64) {
+    throw new Error("Password baru harus 6 sampai 64 karakter.");
+  }
+  query(
+    await db.from("app_settings").upsert({
+      key: "admin_password_hash",
+      value: await hashPassword(newPassword),
+      updated_at: isoNow(),
+    }),
+    "Gagal menyimpan password admin",
+  );
+  return { ok: true };
+}
+
+function photoPath(photo: any): string {
+  const o = photoOf(photo);
+  if (!o) return "";
+  if (str(o.fileId) && !/^https?:/i.test(str(o.fileId))) return str(o.fileId);
+  const match = str(o.view || o.thumb).match(/\/object\/public\/foto_item\/(.+)$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function purgeLogs(p: any): Promise<any> {
+  await requireAdmin(p.password);
+  if (str(p.confirm) !== "HAPUS") throw new Error("Konfirmasi hapus tidak valid.");
+
+  const logs = query<any[]>(
+    await db.from("log_inspeksi").select("id_log, app_photo_json"),
+    "Gagal membaca log",
+  );
+  const repairs = query<any[]>(
+    await db.from("perbaikan").select("foto_json"),
+    "Gagal membaca perbaikan",
+  );
+  const paths = new Set<string>();
+  logs.forEach((r) => { const path = photoPath(r.app_photo_json); if (path) paths.add(path); });
+  repairs.forEach((r) => { const path = photoPath(r.foto_json); if (path) paths.add(path); });
+
+  query(await db.from("perbaikan").delete().not("id", "is", null), "Gagal menghapus perbaikan");
+  query(await db.from("log_inspeksi").delete().not("id", "is", null), "Gagal menghapus log");
+
+  const allPaths = [...paths];
+  let photosFailed = 0;
+  for (let i = 0; i < allPaths.length; i += 100) {
+    const chunk = allPaths.slice(i, i + 100);
+    const { error } = await db.storage.from("foto_item").remove(chunk);
+    if (error) photosFailed += chunk.length;
+  }
+
+  return {
+    logs: new Set(logs.map((r) => str(r.id_log))).size,
+    repairs: repairs.length,
+    photos: allPaths.length - photosFailed,
+    photosFailed,
+  };
 }
 
 async function requireSectionPin(section: string, pin: any): Promise<void> {
@@ -571,6 +673,10 @@ async function handle(action: string, payload: any, password: string): Promise<a
       return saveItem({ ...payload, password });
     case "deleteItem":
       return deleteItem({ ...payload, password });
+    case "changeAdminPassword":
+      return changeAdminPassword({ ...payload, password });
+    case "purgeLogs":
+      return purgeLogs({ ...payload, password });
     default:
       throw new Error("Action tidak dikenal: " + action);
   }

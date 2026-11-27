@@ -2359,7 +2359,8 @@ async function cleanAllLogs() {
     editingLogId = null;
     await loadAll();
     renderAll(); renderKelola();
-    toast("Semua riwayat dihapus.", "emerald");
+    const purged = res.result || {};
+    toast(`Terhapus: ${purged.logs || 0} riwayat, ${purged.repairs || 0} perbaikan, ${purged.photos || 0} foto${purged.photosFailed ? `, ${purged.photosFailed} foto gagal` : ""}.`, purged.photosFailed ? "amber" : "emerald");
   } catch (err) {
     toast("Perhatian: gagal terhubung ke server.", "rose");
   } finally {
