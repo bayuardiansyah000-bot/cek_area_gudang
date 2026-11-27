@@ -1,0 +1,2905 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cek Area Kerja — Bagian · Lantai · Area</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .row-ok { background: #f0fdf4; }
+  .row-ng { background: #fef2f2; }
+  .row-na { background: #f8fafc; }
+  .tab-active { color: #2563eb; }
+  .tab-active .tab-icon { background: #dbeafe; color: #1d4ed8; }
+  .nav-active { background: #eff6ff; color: #1d4ed8; }
+  .nav-active .tab-icon { background: #dbeafe; color: #1d4ed8; }
+  .laporan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .lap-section { grid-column: span var(--lap-span, 1) / span var(--lap-span, 1); }
+  @media (max-width: 1023px) {
+    .laporan-grid { grid-template-columns: 1fr; }
+    .lap-section { grid-column: 1 / -1 !important; }
+  }
+  @keyframes pulseDot { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.7; } }
+  .pulse-dot { animation: pulseDot 1.6s ease-in-out infinite; }
+  @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .slide-down { animation: slideDown 0.3s ease-out; }
+  @keyframes expand { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .expand { animation: expand 0.2s ease-out; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+<header class="bg-gradient-to-r from-blue-700 to-blue-500 text-white shadow-md sticky top-0 z-30">
+  <div class="w-full px-4 lg:px-6 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 rounded-xl bg-white/20 grid place-items-center shrink-0">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="font-bold text-lg leading-tight truncate">Cek Area Kerja</h1>
+        <p class="text-xs text-blue-100 truncate">Bagian · Lantai · Area</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 shrink-0">
+      <div class="hidden sm:block text-right">
+        <div id="clock" class="font-mono text-sm"></div>
+        <div class="text-[10px] text-blue-100">Waktu setempat</div>
+      </div>
+      <button onclick="lockAll()" class="text-xs bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg font-semibold">Lock</button>
+      <div class="w-9 h-9 rounded-full bg-white/20 grid place-items-center">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="w-full max-w-[1800px] mx-auto px-4 lg:px-6 py-5 pb-28 lg:pb-6 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-4 lg:gap-5 items-start">
+
+  <!-- ============ SIDEBAR (desktop) ============ -->
+  <aside class="hidden lg:block sticky top-20 space-y-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-2">
+      <div class="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Menu</div>
+      <nav class="space-y-1">
+        <button data-nav="cek" onclick="switchView('cek')" class="tab-active nav-active w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-left">
+          <span class="tab-icon w-7 h-7 rounded-lg grid place-items-center shrink-0">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </span> Cek
+        </button>
+        <button data-nav="riwayat" onclick="switchView('riwayat')" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 text-left">
+          <span class="tab-icon w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-slate-100">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>
+            </svg>
+          </span> Riwayat
+        </button>
+        <button data-nav="rekap" onclick="switchView('rekap')" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 text-left">
+          <span class="tab-icon w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-slate-100">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>
+            </svg>
+          </span> Rekap
+        </button>
+        <button data-nav="laporan" onclick="switchView('laporan')" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 text-left">
+          <span class="tab-icon w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-slate-100">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
+            </svg>
+          </span> Laporan
+        </button>
+        <button data-nav="kelola" onclick="switchView('kelola')" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 text-left">
+          <span class="tab-icon w-7 h-7 rounded-lg grid place-items-center shrink-0 bg-slate-100">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/>
+            </svg>
+          </span> Kelola
+        </button>
+      </nav>
+    </div>
+    <div id="sideProgress" class="bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-2xl p-4 shadow-sm"></div>
+  </aside>
+
+  <section class="min-w-0 space-y-4">
+
+  <!-- ============ CEK ============ -->
+  <div id="view-cek" class="space-y-4">
+    <section id="revisionBanner" class="hidden"></section>
+    <section id="pendingBanner" class="hidden"></section>
+
+    <section>
+      <h2 class="text-xs font-semibold text-slate-600 uppercase mb-2">Pilih Bagian</h2>
+      <div class="grid grid-cols-2 gap-2" id="sectionTabs"></div>
+    </section>
+
+    <section>
+      <h2 class="text-xs font-semibold text-slate-600 uppercase mb-2">Pilih Lantai Anda</h2>
+      <div id="floorTabs" class="grid gap-2"></div>
+    </section>
+
+    <section id="summaryBar"></section>
+
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Nama Petugas <span class="text-rose-500">*</span></label>
+        <input id="officer" type="text" placeholder="Nama Anda"
+          class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+        <p class="text-[10px] text-slate-500 mt-1">Isi setiap kali mau simpan — kolom ini dikosongkan otomatis setelah simpan, dan nama ini ikut tercetak di foto.</p>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Area Kerja yang Dicek <span class="text-rose-500">*</span></label>
+        <select id="area"
+          class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+          <option value="">Pilih bagian…</option>
+        </select>
+        <p class="text-[10px] text-slate-500 mt-1">Pilih bagian yang sedang dicek. Kolom ini dikosongkan otomatis setelah simpan.</p>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div>
+          <h2 class="font-bold text-slate-800">Checklist — <span id="secTitle">—</span></h2>
+          <p class="text-xs text-slate-500">Tandai tiap item: <b class="text-emerald-600">OK</b> / <b class="text-rose-600">NG</b></p>
+        </div>
+        <button id="btnReset" onclick="resetSection()" class="text-xs text-rose-600 hover:underline hidden">Reset</button>
+      </div>
+      <div id="itemList" class="divide-y divide-slate-100"></div>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Catatan / Temuan</label>
+        <textarea id="note" rows="2" placeholder="Tulis temuan jika ada NG"
+          class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+      </div>
+    </section>
+
+    <button id="btnSubmit" onclick="submit()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition active:scale-[0.99]">
+      Simpan Hasil Pengecekan
+    </button>
+  </div>
+
+  <!-- ============ RIWAYAT ============ -->
+  <div id="view-riwayat" class="hidden space-y-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center gap-2">
+      <label class="text-xs font-semibold text-slate-600">Filter tanggal:</label>
+      <input type="date" id="filterDate" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
+      <button onclick="clearFilter()" class="text-xs text-blue-600 hover:underline">Semua</button>
+    </div>
+    <p class="text-[11px] text-slate-500 text-center -mt-2">Klik kartu untuk detail · tombol Revisi ada di dalam detail</p>
+    <div id="riwayatList" class="space-y-3"></div>
+  </div>
+
+  <!-- ============ REKAP ============ -->
+  <div id="view-rekap" class="hidden space-y-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center gap-2">
+      <label class="text-xs font-semibold text-slate-600">Periode:</label>
+      <input type="date" id="rekapFrom" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
+      <span class="text-slate-400 text-sm">s/d</span>
+      <input type="date" id="rekapTo" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5" />
+      <button onclick="renderRekap()" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold">Terapkan</button>
+      <button onclick="exportCSV()" class="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-semibold ml-auto">Export CSV</button>
+    </div>
+    <div id="rekapStats" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <h3 class="font-bold text-sm mb-2">Per Bagian</h3>
+      <div id="rekapPerSection" class="space-y-2"></div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <h3 class="font-bold text-sm mb-2">Per Lantai</h3>
+      <div id="rekapPerFloor" class="space-y-2"></div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <h3 class="font-bold text-sm mb-2">Per Area Kerja</h3>
+      <div id="rekapPerArea" class="space-y-2"></div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <h3 class="font-bold text-sm mb-2">Detail per Bagian & Lantai</h3>
+      <div id="rekapPerCombo" class="space-y-2"></div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <h3 class="font-bold text-sm mb-2">Daftar Temuan NG</h3>
+      <div id="rekapTemuan" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- ============ KELOLA ============ -->
+  <!-- ============ LAPORAN ============ -->
+  <div id="view-laporan" class="hidden space-y-4">
+    <div class="flex items-center justify-end">
+      <button id="btnDownloadLaporan" onclick="downloadLaporanJpg()" class="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-blue-700 shadow-sm">Download Laporan</button>
+    </div>
+    <div id="laporanList" class="space-y-4"></div>
+  </div>
+
+  <div id="view-kelola" class="hidden space-y-4">
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800">
+      <b>Mode Kelola Checklist</b><br>
+      Hanya admin yang bisa masuk ke sini. Perubahan tidak mempengaruhi riwayat lama.
+    </div>
+
+    <!-- KEAMANAN -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <h3 class="font-bold text-sm">Pengaturan Keamanan</h3>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">PIN Admin (untuk buka tab Kelola)</label>
+        <div class="flex gap-2 mt-1">
+          <input id="adminPinInput" type="text" inputmode="numeric" maxlength="8"
+            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2" placeholder="min. 4 karakter" />
+          <button onclick="saveAdminPin()" class="text-xs bg-blue-600 text-white px-4 rounded-lg font-semibold hover:bg-blue-700">Simpan</button>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">Password admin sekarang diatur di <b>Apps Script → Project Settings → Script Properties (ADMIN_PASSWORD)</b>, bukan di sini.</p>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">PIN per Bagian (opsional)</label>
+        <p class="text-[10px] text-slate-500 mb-2">Kosongkan = tidak diproteksi. Isi = petugas harus masukkan PIN untuk buka bagian ini di tab Cek.</p>
+        <div id="sectionPins" class="space-y-2"></div>
+      </div>
+      <button onclick="lockAll()" class="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg font-semibold">
+        Lock Sekarang (keluar dari admin & kunci semua bagian)
+      </button>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xs font-semibold text-slate-600 uppercase">Pilih Bagian</h2>
+        <div class="flex gap-1.5">
+          <button onclick="addSection()" class="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold hover:bg-emerald-700">+ Tambah Bagian</button>
+          <button id="btnEditSection" onclick="renameSection(kelolaSection)" class="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-semibold hover:bg-blue-700 hidden">Ubah</button>
+          <button id="btnDelSection" onclick="deleteSection(kelolaSection)" class="text-xs bg-rose-600 text-white px-2.5 py-1 rounded-lg font-semibold hover:bg-rose-700 hidden">Hapus</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2" id="kelolaSections"></div>
+    </section>
+
+    <section id="kelolaPanel" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <h2 class="font-bold text-slate-800 truncate">Checklist — <span id="kelolaTitle">—</span></h2>
+          <p class="text-xs text-slate-500" id="kelolaSub">—</p>
+        </div>
+        <button onclick="openItemForm()" class="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-semibold hover:bg-blue-700 shrink-0">+ Tambah Item</button>
+      </div>
+      <div id="kelolaItems" class="divide-y divide-slate-100"></div>
+    </section>
+  </div>
+
+  </section>
+
+  <!-- ============ SIDEBAR KANAN ============ -->
+  <aside class="order-3 lg:order-none space-y-4">
+    <div id="sideSummary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"></div>
+    <div id="sideActivity" class="bg-gradient-to-br from-slate-800 to-slate-700 text-white rounded-2xl p-4 shadow-sm"></div>
+  </aside>
+</main>
+
+<nav class="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 shadow-lg z-30">
+  <div class="grid grid-cols-5">
+    <button data-nav="cek" onclick="switchView('cek')" class="py-2.5 flex flex-col items-center gap-0.5 tab-active nav-active relative">
+      <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center relative">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <span id="navBadge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center pulse-dot">0</span>
+      </div>
+      <span class="text-[11px] font-semibold">Cek</span>
+    </button>
+    <button data-nav="riwayat" onclick="switchView('riwayat')" class="py-2.5 flex flex-col items-center gap-0.5 text-slate-500">
+      <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center bg-slate-100">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>
+        </svg>
+      </div>
+      <span class="text-[11px] font-semibold">Riwayat</span>
+    </button>
+    <button data-nav="rekap" onclick="switchView('rekap')" class="py-2.5 flex flex-col items-center gap-0.5 text-slate-500">
+      <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center bg-slate-100">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>
+        </svg>
+      </div>
+      <span class="text-[11px] font-semibold">Rekap</span>
+    </button>
+    <button data-nav="laporan" onclick="switchView('laporan')" class="py-2.5 flex flex-col items-center gap-0.5 text-slate-500">
+      <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center bg-slate-100">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
+        </svg>
+      </div>
+      <span class="text-[11px] font-semibold">Laporan</span>
+    </button>
+    <button data-nav="kelola" onclick="switchView('kelola')" class="py-2.5 flex flex-col items-center gap-0.5 text-slate-500">
+      <div class="tab-icon w-8 h-8 rounded-lg grid place-items-center bg-slate-100">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/>
+        </svg>
+      </div>
+      <span class="text-[11px] font-semibold">Kelola</span>
+    </button>
+  </div>
+</nav>
+
+<!-- MODAL PIN -->
+<div id="pinModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
+    <div class="text-center">
+      <div class="text-2xl font-bold text-blue-600 mb-1">PIN</div>
+      <h3 id="pinTitle" class="font-bold text-slate-800">Masukkan PIN</h3>
+      <p id="pinSubtitle" class="text-xs text-slate-500 mt-0.5">—</p>
+    </div>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="64" placeholder="••••"
+      onkeypress="if(event.key==='Enter') submitPin()"
+      class="w-full text-center text-2xl tracking-widest font-mono border-2 border-slate-300 rounded-xl px-3 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+    <div id="pinError" class="hidden text-xs text-rose-600 text-center font-semibold">PIN salah, coba lagi.</div>
+    <div class="flex gap-2">
+      <button onclick="closePin()" class="flex-1 text-sm px-4 py-2.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold">Batal</button>
+      <button onclick="submitPin()" class="flex-1 text-sm px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow">Buka</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ITEM -->
+<div id="itemModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl">
+    <div class="flex items-center justify-between">
+      <h3 id="modalTitle" class="font-bold text-slate-800">Tambah Item</h3>
+      <button onclick="closeItemForm()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Label Item <span class="text-rose-500">*</span></label>
+      <textarea id="modalLabel" rows="2" placeholder="mis. Stopkontak kipas angin sudah dicabut"
+        class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Berlaku di Lantai</label>
+      <div class="mt-1 flex gap-3">
+        <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="mL1" class="w-4 h-4" /> L1</label>
+        <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="mL2" class="w-4 h-4" /> L2</label>
+        <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="mL3" class="w-4 h-4" /> L3</label>
+      </div>
+      <p class="text-[10px] text-slate-500 mt-1">Kosongkan semua = otomatis <b>Lantai 1 saja</b></p>
+    </div>
+    <div class="flex justify-end gap-2 pt-2">
+      <button onclick="closeItemForm()" class="text-sm px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200">Batal</button>
+      <button onclick="saveItem()" class="text-sm px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CATAT PERBAIKAN -->
+<div id="repairModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl max-w-md w-full p-5 space-y-3 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div class="flex items-start justify-between gap-2">
+      <div>
+        <h3 class="font-bold text-slate-800">Catat Perbaikan</h3>
+        <p id="repairSubtitle" class="text-xs text-slate-500 mt-0.5">—</p>
+      </div>
+      <button onclick="closeRepairForm()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none shrink-0">&times;</button>
+    </div>
+
+    <div class="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-rose-500">Temuan NG</div>
+      <div id="repairItemLabel" class="text-sm font-semibold text-rose-800 leading-snug"></div>
+      <div id="repairItemNote" class="text-[11px] italic text-rose-700 mt-0.5"></div>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Petugas Perbaikan <span class="text-rose-500">*</span></label>
+      <input id="repairOfficer" type="text" placeholder="Nama petugas yang memperbaiki"
+        class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Waktu Perbaikan <span class="text-rose-500">*</span></label>
+      <input id="repairTime" type="datetime-local"
+        class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+      <p class="text-[10px] text-slate-500 mt-1">Memakai waktu Indonesia bagian barat.</p>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Catatan Perbaikan <span class="text-rose-500">*</span></label>
+      <textarea id="repairNote" rows="3" placeholder="mis. Kran diganti, area sudah dibersihkan"
+        class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+    </div>
+
+    <div>
+      <label class="text-xs font-semibold text-slate-600">Foto Perbaikan <span class="text-slate-400 font-normal">(opsional)</span></label>
+      <div id="repairPhotoPreview" class="mt-1"></div>
+      <label id="btnRepairPhoto" class="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-100">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span>Pilih Foto</span>
+        <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleRepairPhotoFile(this)" />
+      </label>
+    </div>
+
+    <div class="flex gap-2 pt-1">
+      <button onclick="closeRepairForm()" class="flex-1 text-sm px-4 py-2.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold">Batal</button>
+      <button id="btnRepairSave" onclick="saveRepair()" class="flex-1 text-sm px-4 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow">Simpan Perbaikan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ SEED (REFERENSI SAJA) ============
+   Catatan: object ini TIDAK LAGI dibaca oleh app — sekarang checklist
+   diambil dari Google Sheet via Apps Script (lihat loadAll()).
+   Dibiarkan di sini cuma sebagai referensi supaya kamu gampang
+   menyalin ulang semua item ke tab "Items" di Sheet kalau perlu. */
+const DEFAULT_CHECKLISTS_REFERENSI_SAJA = {
+  "Outbond": [
+    { id: "kipas",          label: "Stopkontak kipas angin sudah dicabut",                     floors: [1,2,3] },
+    { id: "dispenser",      label: "Stopkontak dispenser sudah dicabut",                       floors: [] },
+    { id: "komp-val",       label: "Stopkontak komputer validasi sudah dicabut",               floors: [1,2,3] },
+    { id: "laptop-log",     label: "Stopkontak laptop & komputer logistik sudah dicabut",      floors: [] },
+    { id: "bersih-packing", label: "Area packing sudah dibersihkan",                           floors: [1,2,3] },
+    { id: "pintu-l1",       label: "Pintu area packing Lantai 1 sudah terkunci",               floors: [1] },
+    { id: "lampu",          label: "Lampu area kerja sudah dimatikan",                         floors: [] },
+    { id: "sampah",         label: "Sampah sudah dibuang",                                     floors: [] },
+  ],
+  "Inbound": [
+    { id: "kipas",      label: "Stopkontak kipas angin wajib dicabut",                          floors: [] },
+    { id: "dispenser",  label: "Stopkontak dispenser wajib dicabut",                            floors: [] },
+    { id: "laptop",     label: "Stopkontak laptop wajib dicabut",                               floors: [] },
+    { id: "pdt-simpan", label: "PDT & laptop disimpan pada tempat yang sudah disediakan",       floors: [] },
+    { id: "charger",    label: "Charger PDT & laptop pastikan tidak ada yang tersambung ke stopkontak", floors: [] },
+    { id: "lampu",      label: "Matikan lampu area kerja",                                      floors: [] },
+    { id: "lift",       label: "Pastikan lift berada di lantai 1 setelah selesai bekerja",      floors: [] },
+  ],
+  "B2B": [
+    { id: "kipas",     label: "Stopkontak kipas angin wajib dicabut",                            floors: [] },
+    { id: "dispenser", label: "Stopkontak dispenser wajib dicabut",                              floors: [] },
+    { id: "laptop",    label: "Stopkontak laptop wajib dicabut",                                 floors: [] },
+    { id: "charger",   label: "Charger laptop pastikan tidak ada yang tersambung ke stopkontak", floors: [] },
+    { id: "lampu",     label: "Matikan lampu area kerja",                                        floors: [] },
+  ],
+  "Housekeeping": [
+    { id: "kipas",     label: "Stopkontak kipas angin wajib dicabut",                            floors: [] },
+    { id: "dispenser", label: "Stopkontak dispenser wajib dicabut",                              floors: [] },
+    { id: "laptop",    label: "Stopkontak laptop wajib dicabut",                                 floors: [] },
+    { id: "charger",   label: "Charger PDT & laptop pastikan tidak ada yang tersambung ke stopkontak", floors: [] },
+    { id: "jendela",   label: "Cek jendela pastikan sudah tertutup",                             floors: [2,3] },
+    { id: "lampu",     label: "Matikan lampu area kerja & area rak barang",                      floors: [] },
+  ],
+};
+
+/* ============ STATE ============ */
+// GANTI dengan Web App URL hasil deploy Apps Script kamu (Langkah 3)
+const GAS_URL = "https://script.google.com/macros/s/AKfycbyZgbDlER4S2LUCioPzGL4Qz1KHQnwDakFCsn5kuqM3AKfgvCD_tDY5x4mjznk8ZiH26w/exec";
+
+// Backend bisa dibalik ke Apps Script kapan saja selama migrasi.
+// Isi tiga konstanta Supabase di bawah ini hanya jika BACKEND = "supabase".
+const BACKEND = "__BACKEND__"; // "appscript" | "supabase"
+const SUPABASE_URL = "__SUPABASE_URL__";
+const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__";
+const SUPABASE_FUNCTION_URL = "__SUPABASE_FUNCTION_URL__";
+
+const DRAFTS_KEY = "cekarea_drafts_v1"; // draft tetap lokal per device, tidak perlu disinkronkan
+
+let data = { checklists: {}, logs: [], drafts: {}, pinSections: {}, sectionMeta: {} };
+
+let currentSection = "";
+let currentFloor = 1;
+let currentValues = {};
+let currentPhotos = {}; // { itemId: { thumb, view, fileId } }
+let uploadingPhotoKey = null; // id item yang sedang proses upload foto (biar tombolnya nunjukin loading)
+let expandedLogId = null;
+let editingLogId = null;
+let kelolaSection = null;
+let editingItemId = null;
+let pinCallback = null;
+let repairLogId = null;
+let repairItemId = null;
+let repairPhoto = null;
+let repairUploading = false;
+
+function loadLocalDrafts() {
+  try {
+    const raw = localStorage.getItem(DRAFTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    data.drafts = (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+  } catch (err) {
+    console.warn("Draft lokal rusak, diabaikan:", err);
+    data.drafts = {};
+    try { localStorage.removeItem(DRAFTS_KEY); } catch (e) {}
+  }
+}
+function save() {
+  // sekarang hanya draft yang disimpan lokal; checklist & log disimpan di Google Sheet
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(data.drafts));
+  } catch (err) {
+    // localStorage bisa penuh / diblokir (mode privat). Jangan sampai UI ikut error.
+    console.warn("Gagal menyimpan draft lokal:", err);
+  }
+}
+function adminPw() { return sessionStorage.getItem("adminPw") || ""; }
+
+/* ============ REMOTE (Apps Script backend) ============ */
+async function readJsonResponse(res) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error("Respons server bukan JSON. Periksa konfigurasi backend.");
+  }
+}
+
+/* ---------- BACKEND SUPABASE (baca langsung, tulis lewat Edge Function) ---------- */
+async function supabaseFetch_(path) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Supabase belum dikonfigurasi. Isi SUPABASE_URL dan SUPABASE_ANON_KEY.");
+  }
+  const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error("Gagal membaca Supabase: " + String(text).slice(0, 200));
+  }
+  return res.json();
+}
+async function supabaseReadAll_() {
+  const [sections, items, logs] = await Promise.all([
+    supabaseFetch_("v_sections?select=*"),
+    supabaseFetch_("v_items?select=*"),
+    supabaseFetch_("v_log_groups?select=*&order=time.desc"),
+  ]);
+  return { ok: true, version: 8, backend: "supabase", sections, items, logs };
+}
+async function supabaseReadMeta_() {
+  const rows = await supabaseFetch_("v_meta?select=*");
+  return { ok: true, version: 8, backend: "supabase", meta: rows[0] || {} };
+}
+async function supabasePost_(action, payload, password) {
+  if (!SUPABASE_FUNCTION_URL) {
+    throw new Error("Supabase Edge Function belum dikonfigurasi. Isi SUPABASE_FUNCTION_URL.");
+  }
+  const res = await fetch(SUPABASE_FUNCTION_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ action, payload, password: password || "" }),
+  });
+  return readJsonResponse(res);
+}
+
+async function gasGet() {
+  if (BACKEND === "supabase") return supabaseReadAll_();
+  const res = await fetch(GAS_URL + "?t=" + Date.now(), { method: "GET", cache: "no-store" });
+  return readJsonResponse(res);
+}
+async function gasGetMeta() {
+  if (BACKEND === "supabase") return supabaseReadMeta_();
+  const res = await fetch(GAS_URL + "?meta=1&t=" + Date.now(), { method: "GET", cache: "no-store" });
+  return readJsonResponse(res);
+}
+async function gasPost(action, payload, password) {
+  if (BACKEND === "supabase") return supabasePost_(action, payload, password);
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    // PENTING: pakai text/plain, bukan application/json — supaya browser tidak kirim
+    // preflight OPTIONS request dulu, karena Apps Script Web App tidak menanganinya.
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action, payload, password: password || "" }),
+  });
+  return readJsonResponse(res);
+}
+async function loadAll(opts = {}) {
+  const silent = !!opts.silent;
+  let json;
+  try {
+    json = await gasGet();
+  } catch (err) {
+    if (!silent) toast("Perhatian: gagal terhubung ke server. Periksa koneksi internet.", "rose");
+    return false;
+  }
+  if (!json.ok) {
+    if (!silent) toast("Gagal memuat data: " + (json.error || ""), "rose");
+    return false;
+  }
+
+  const checklists = {};
+  const pinSections = {};
+  const sectionMeta = {};
+  (json.sections || [])
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .forEach(s => {
+      checklists[s.name] = [];
+      const hasPin = !!(s.hasPin || s.pin);
+      sectionMeta[s.name] = { hasPin, sortOrder: s.sortOrder || 0 };
+      if (hasPin) pinSections[s.name] = true;
+    });
+  (json.items || []).forEach(it => {
+    if (!checklists[it.section]) checklists[it.section] = [];
+    checklists[it.section].push({ id: it.id, label: it.label, floors: it.floors });
+  });
+
+  data.checklists = checklists;
+  data.pinSections = pinSections;
+  data.sectionMeta = sectionMeta;
+  data.logs = json.logs || [];
+  return true;
+}
+
+/* ============ AUTH HELPERS ============ */
+function isAdminUnlocked() { return sessionStorage.getItem("adminUnlocked") === "1"; }
+function isSectionUnlocked(sec) { return sessionStorage.getItem("unlock_" + sec) === "1"; }
+
+async function verifySectionPin(section, pin) {
+  let res;
+  try {
+    res = await gasPost("verifySectionPin", { section, pin });
+  } catch (err) {
+    toast("Perhatian: gagal memverifikasi PIN. Periksa koneksi internet.", "rose");
+    return false;
+  }
+  if (!res.ok) {
+    toast(res.error || "Gagal memverifikasi PIN.", "rose");
+    return false;
+  }
+  if (res.result && res.result.valid) {
+    sessionStorage.setItem("unlock_" + section, "1");
+    sessionStorage.setItem("pin_" + section, pin);
+    return true;
+  }
+  return false;
+}
+
+function askPin(title, subtitle, validator, opts = {}) {
+  document.getElementById("pinTitle").textContent = title;
+  document.getElementById("pinSubtitle").textContent = subtitle;
+  const input = document.getElementById("pinInput");
+  input.maxLength = opts.maxLength || 8;
+  input.inputMode = opts.inputmode || "numeric";
+  input.value = "";
+  document.getElementById("pinError").classList.add("hidden");
+  document.getElementById("pinModal").classList.remove("hidden");
+  setTimeout(() => input.focus(), 80);
+  pinCallback = validator;
+}
+function closePin() {
+  document.getElementById("pinModal").classList.add("hidden");
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinError").classList.add("hidden");
+  pinCallback = null;
+}
+let pinBusy = false;
+async function submitPin() {
+  if (!pinCallback) { closePin(); return; }
+  if (pinBusy) return;
+  pinBusy = true;
+  const inputEl = document.getElementById("pinInput");
+  try {
+    const ok = await pinCallback(inputEl.value);
+    if (ok === false) {
+      document.getElementById("pinError").classList.remove("hidden");
+      inputEl.value = "";
+      inputEl.focus();
+      return;
+    }
+    closePin();
+  } catch (err) {
+    document.getElementById("pinError").classList.remove("hidden");
+  } finally {
+    pinBusy = false;
+  }
+}
+document.getElementById("pinModal").addEventListener("click", e => {
+  if (e.target.id === "pinModal") closePin();
+});
+
+function lockAll() {
+  sessionStorage.removeItem("adminUnlocked");
+  sessionStorage.removeItem("adminPw");
+  Object.keys(data.checklists || {}).forEach(s => {
+    sessionStorage.removeItem("unlock_" + s);
+    sessionStorage.removeItem("pin_" + s);
+  });
+  doSwitchView("cek");
+  toast("Semua terkunci", "amber");
+}
+
+/* ============ HELPERS ============ */
+function sections() { return Object.keys(data.checklists); }
+function getItems(sec) { return data.checklists[sec] || []; }
+function dk(sec, fl) { return `${sec}::${fl}`; }
+function floorItems(sec, floor) {
+  return getItems(sec).filter(item => {
+    if (!item.floors || item.floors.length === 0) return floor === 1;
+    return item.floors.includes(floor);
+  });
+}
+function floorsForSection(sec) {
+  const set = new Set();
+  getItems(sec).forEach(item => {
+    if (!item.floors || item.floors.length === 0) set.add(1);
+    else item.floors.forEach(f => set.add(f));
+  });
+  return [...set].sort();
+}
+const APP_TZ = "Asia/Jakarta"; // zona waktu operasional (WIB)
+
+function dateStrInTZ(d = new Date(), tz = APP_TZ) {
+  if (!(d instanceof Date) || isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(d);
+  const get = t => (parts.find(p => p.type === t) || {}).value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+function todayStr(d = new Date()) {
+  return dateStrInTZ(d);
+}
+function logDateStr(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : dateStrInTZ(d);
+}
+function fmtDateTime(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return isNaN(d.getTime()) ? "-" : d.toLocaleString("id-ID", { timeZone: APP_TZ });
+}
+function fmtTime(value, opts = {}) {
+  const d = value instanceof Date ? value : new Date(value);
+  return isNaN(d.getTime()) ? "-" : d.toLocaleTimeString("id-ID", { timeZone: APP_TZ, ...opts });
+}
+function fmtDateLabel(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString("id-ID", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+}
+function esc(s) { return (s || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ============ PENDING ============ */
+function getAllCombos() {
+  const out = [];
+  sections().forEach(sec => {
+    floorsForSection(sec).forEach(fl => {
+      if (floorItems(sec, fl).length > 0) out.push({ section: sec, floor: fl });
+    });
+  });
+  return out;
+}
+function todayLogsFor(sec, fl) {
+  const today = todayStr();
+  return data.logs.filter(l => l && l.section === sec && Number(l.floor) === Number(fl) && logDateStr(l.time) === today);
+}
+function todayFilledIds(sec, fl) {
+  const ids = new Set();
+  todayLogsFor(sec, fl).forEach(l => {
+    if (Array.isArray(l.items)) {
+      l.items.forEach(it => { if (it && it.val && it.id) ids.add(String(it.id)); });
+    } else if (l.values && typeof l.values === "object") {
+      Object.keys(l.values).forEach(k => { if (l.values[k]) ids.add(String(k)); });
+    }
+  });
+  return ids;
+}
+function getDoneToday() {
+  const set = new Set();
+  getAllCombos().forEach(c => {
+    const total = floorItems(c.section, c.floor).length;
+    if (!total) return;
+    if (todayFilledIds(c.section, c.floor).size >= total) set.add(dk(c.section, c.floor));
+  });
+  return set;
+}
+function getPendingToday() {
+  const done = getDoneToday();
+  return getAllCombos().filter(c => !done.has(dk(c.section, c.floor)));
+}
+function renderPending() {
+  const pending = getPendingToday();
+  const total = getAllCombos().length;
+  const badge = document.getElementById("navBadge");
+  if (pending.length > 0) { badge.textContent = pending.length; badge.classList.remove("hidden"); }
+  else badge.classList.add("hidden");
+
+  const banner = document.getElementById("pendingBanner");
+  if (pending.length === 0) { banner.classList.add("hidden"); banner.innerHTML = ""; return; }
+  banner.classList.remove("hidden");
+  banner.className = "slide-down rounded-xl bg-amber-50 border-2 border-amber-300 p-3";
+  banner.innerHTML = `
+    <div class="flex items-start gap-2.5">
+      <div class="w-8 h-8 rounded-full bg-amber-200 grid place-items-center text-lg shrink-0">!</div>
+      <div class="flex-1">
+        <div class="font-bold text-sm text-amber-900">${pending.length} dari ${total} cek belum selesai hari ini</div>
+        <div class="text-xs text-amber-800 mt-0.5">Cek yang belum masuk:</div>
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          ${pending.map(p => `
+            <button data-sec="${esc(p.section)}" data-fl="${p.floor}" onclick="jumpTo(this.dataset.sec, Number(this.dataset.fl))" class="text-[11px] bg-white border border-amber-400 text-amber-900 font-semibold px-2.5 py-1 rounded-lg hover:bg-amber-100">
+              ${esc(p.section)} · L${p.floor} →
+            </button>`).join("")}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ============ SIDEBAR KANAN ============ */
+function renderSide() {
+  const combos = getAllCombos();
+  const done = getDoneToday();
+  const total = combos.length;
+  const doneCount = combos.filter(c => done.has(dk(c.section, c.floor))).length;
+  const sisa = Math.max(0, total - doneCount);
+  const pct = total ? Math.round((doneCount / total) * 100) : 0;
+
+  const progress = document.getElementById("sideProgress");
+  if (progress) {
+    progress.innerHTML = `
+      <div class="text-[10px] uppercase tracking-widest text-blue-100 font-bold">Progress hari ini</div>
+      <div class="mt-2 flex items-end gap-1">
+        <div class="text-3xl font-bold leading-none">${doneCount}</div>
+        <div class="text-sm text-blue-100 mb-0.5">/ ${total} lantai</div>
+      </div>
+      <div class="h-1.5 bg-white/25 rounded-full mt-3 overflow-hidden">
+        <div class="h-full bg-white rounded-full" style="width:${pct}%"></div>
+      </div>
+      <div class="text-[10px] text-blue-100 mt-2">${sisa === 0 ? "Semua bagian selesai hari ini" : `${sisa} lantai belum dicek`}</div>`;
+  }
+
+  const summary = document.getElementById("sideSummary");
+  if (summary) {
+    summary.innerHTML = `
+      <div class="flex items-center gap-2 mb-3">
+        <span class="pulse-dot w-2 h-2 rounded-full bg-emerald-500"></span>
+        <h2 class="text-xs font-bold uppercase tracking-wide text-slate-600">Ringkasan Hari Ini</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="rounded-xl bg-slate-50 py-2">
+          <div class="text-[9px] text-slate-400 font-bold">TOTAL</div>
+          <div class="text-lg font-bold text-slate-800">${total}</div>
+        </div>
+        <div class="rounded-xl bg-emerald-50 py-2">
+          <div class="text-[9px] text-emerald-600 font-bold">SELESAI</div>
+          <div class="text-lg font-bold text-emerald-700">${doneCount}</div>
+        </div>
+        <div class="rounded-xl bg-amber-50 py-2">
+          <div class="text-[9px] text-amber-600 font-bold">SISA</div>
+          <div class="text-lg font-bold text-amber-700">${sisa}</div>
+        </div>
+      </div>`;
+  }
+
+  const activity = document.getElementById("sideActivity");
+  if (activity) {
+    const recent = [...data.logs]
+      .filter(l => l && l.time)
+      .sort((a, b) => new Date(b.time) - new Date(a.time))
+      .slice(0, 3);
+    activity.innerHTML = `
+      <div class="text-[10px] uppercase tracking-widest text-slate-300 font-bold">Aktivitas</div>
+      <div class="mt-2 space-y-2 text-[11px]">
+        ${recent.length
+          ? recent.map(l => `
+              <div class="flex gap-2">
+                <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${l.hasIssue ? "bg-rose-400" : "bg-emerald-400"}"></span>
+                <span>${esc(l.officer || "-")} · ${esc(l.section || "-")} L${Number(l.floor) || "-"} · ${fmtTime(l.time)}</span>
+              </div>`).join("")
+          : `<div class="text-slate-300">Belum ada aktivitas tercatat.</div>`}
+      </div>`;
+  }
+}
+
+/* ============ LAPORAN ============ */
+function renderLaporan() {
+  const el = document.getElementById("laporanList");
+  const today = todayStr();
+  const combos = getAllCombos();
+  const bySection = {};
+  combos.forEach(c => {
+    if (!bySection[c.section]) bySection[c.section] = [];
+    bySection[c.section].push(c.floor);
+  });
+
+  function todayLog(sec, fl) {
+    const logs = data.logs
+      .filter(l => l.section === sec && Number(l.floor) === Number(fl) && logDateStr(l.time) === today)
+      .sort((a, b) => new Date(b.time) - new Date(a.time));
+    if (!logs.length) return null;
+    const merged = {};
+    const order = [];
+    logs.forEach((l, li) => (l.items || []).forEach((it, ii) => {
+      if (!it) return;
+      const id = String(it.id || ("__log" + li + "_item" + ii));
+      if (!merged[id]) order.push(id);
+      merged[id] = it;
+    }));
+    return Object.assign({}, logs[0], { items: order.map(id => merged[id]) });
+  }
+  function filledCount(log) {
+    if (!log) return 0;
+    // Log versi baru menyimpan array items; log lama menyimpan objek values.
+    if (Array.isArray(log.items) && log.items.length) {
+      return log.items.filter(it => it && it.val).length;
+    }
+    if (log.values && typeof log.values === "object") {
+      return Object.keys(log.values).map(k => log.values[k]).filter(v => v).length;
+    }
+    return 0;
+  }
+
+  let grandTotal = 0;
+  let grandDone = 0;
+  let floorsDone = 0;
+  let floorsTotal = 0;
+  let sectionsHtml = "";
+  const focus = [];
+  const firstRowSections = ["B2B", "Inbound", "Housekeeping"];
+  const sectionNames = Object.keys(bySection).sort((a, b) => {
+    const ia = firstRowSections.indexOf(a);
+    const ib = firstRowSections.indexOf(b);
+    if (ia >= 0 || ib >= 0) {
+      if (ia < 0) return 1;
+      if (ib < 0) return -1;
+      return ia - ib;
+    }
+    return a.localeCompare(b);
+  });
+
+  sectionNames.forEach(sec => {
+    let secTotal = 0;
+    let secDone = 0;
+    let secFloorsDone = 0;
+    const floorCount = bySection[sec].length;
+    const span = Math.max(1, Math.min(3, floorCount));
+
+    const cards = bySection[sec].sort((a, b) => a - b).map(fl => {
+      const total = floorItems(sec, fl).length;
+      const done = Math.min(filledCount(todayLog(sec, fl)), total);
+      const progress = Math.max(0, total - done);
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const complete = total > 0 && progress === 0;
+      secTotal += total;
+      secDone += done;
+      floorsTotal++;
+      if (complete) { secFloorsDone++; floorsDone++; }
+      else focus.push({ section: sec, floor: fl, progress });
+
+      return `
+        <div class="rounded-xl border border-slate-200 border-t-2 ${complete ? 'border-t-emerald-400' : 'border-t-amber-400'} bg-slate-50/40 px-2.5 py-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-slate-700">Lantai ${fl}</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${complete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${complete ? 'SELESAI' : 'PROGRES'}</span>
+          </div>
+          <div class="grid grid-cols-3 divide-x divide-slate-200 mt-2">
+            <div class="text-center"><div class="text-[8px] font-bold uppercase text-slate-400">Total</div><div class="text-sm font-bold text-slate-800">${total}</div></div>
+            <div class="text-center"><div class="text-[8px] font-bold uppercase text-slate-400">Selesai</div><div class="text-sm font-bold text-emerald-600">${done}</div></div>
+            <div class="text-center"><div class="text-[8px] font-bold uppercase text-slate-400">On prog</div><div class="text-sm font-bold ${progress > 0 ? 'text-amber-600' : 'text-slate-400'}">${progress}</div></div>
+          </div>
+          <div class="h-1 bg-slate-200 rounded-full mt-2 overflow-hidden"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join("");
+
+    const secPct = secTotal ? Math.round((secDone / secTotal) * 100) : 0;
+    const secComplete = secTotal > 0 && secFloorsDone === floorCount;
+    sectionsHtml += `
+      <div class="lap-section bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" style="--lap-span:${span};">
+        <div class="px-3 py-2.5 border-b border-slate-100">
+          <div class="flex items-start justify-between gap-2">
+            <span class="text-[11px] font-bold text-slate-800 leading-tight break-words min-w-0">${esc(sec)}</span>
+            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0 ${secComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${secComplete ? 'SELESAI' : 'PROGRES'}</span>
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full rounded-full ${secComplete ? 'bg-emerald-500' : 'bg-amber-500'}" style="width:${secPct}%"></div>
+            </div>
+            <span class="text-[9px] font-bold text-slate-500 whitespace-nowrap">${secDone}/${secTotal}</span>
+          </div>
+        </div>
+        <div class="p-2.5" style="display:grid;grid-template-columns:repeat(${span},minmax(0,1fr));gap:8px;">${cards}</div>
+      </div>`;
+
+    grandTotal += secTotal;
+    grandDone += secDone;
+  });
+
+  const sisa = Math.max(0, grandTotal - grandDone);
+  const pct = grandTotal ? Math.round((grandDone / grandTotal) * 100) : 0;
+  const openNg = data.logs
+    .filter(l => l && logDateStr(l.time) === today)
+    .reduce((n, l) => {
+      if (Array.isArray(l.items) && l.items.length) {
+        return n + l.items.filter(it => it && it.val === "NG" && it.repairStatus !== "SELESAI").length;
+      }
+      return n + (l.hasIssue ? (Number(l.ngCount) || 0) : 0);
+    }, 0);
+
+  const head = `
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 lg:p-5">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Laporan harian</div>
+          <h2 class="text-lg font-bold text-slate-800 mt-0.5">${fmtDateLabel(today)}</h2>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-slate-800 leading-none">${grandDone}<span class="text-sm font-semibold text-slate-400"> / ${grandTotal} item</span></div>
+          <div class="text-[10px] text-slate-500 mt-1">${pct}% checklist terisi</div>
+        </div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden">
+        <div class="h-full bg-blue-600 rounded-full" style="width:${pct}%"></div>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+        <div class="rounded-xl bg-slate-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-slate-400">Total item</div><div class="text-lg font-bold text-slate-800">${grandTotal}</div></div>
+        <div class="rounded-xl bg-emerald-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-emerald-600">Selesai</div><div class="text-lg font-bold text-emerald-700">${grandDone}</div></div>
+        <div class="rounded-xl bg-amber-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-amber-600">On progress</div><div class="text-lg font-bold text-amber-700">${sisa}</div></div>
+        <div class="rounded-xl bg-rose-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-rose-600">NG belum selesai</div><div class="text-lg font-bold text-rose-700">${openNg}</div></div>
+        <div class="rounded-xl bg-blue-50 px-3 py-2"><div class="text-[9px] font-bold uppercase tracking-wide text-blue-600">Lantai selesai</div><div class="text-lg font-bold text-blue-700">${floorsDone}/${floorsTotal}</div></div>
+      </div>
+    </div>`;
+
+  const footer = `
+    <div class="rounded-xl bg-slate-800 text-slate-200 px-4 py-2.5 text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1">
+      <span class="font-bold text-white uppercase tracking-wide">Fokus hari ini</span>
+      ${focus.length
+        ? focus.slice(0, 4).map(f => `<span>${esc(f.section)} L${f.floor}: ${f.progress} item tersisa</span>`).join("")
+        : `<span>Semua lantai selesai hari ini.</span>`}
+      <span class="ml-auto text-slate-400">Data per ${fmtTime(new Date())}</span>
+    </div>`;
+
+  const bodyHtml = sectionsHtml
+    ? `<div class="laporan-grid">${sectionsHtml}</div>`
+    : `<p class="text-center text-xs text-slate-400 py-6">Belum ada checklist dikonfigurasi.</p>`;
+  el.innerHTML = head + bodyHtml + footer;
+}
+
+/* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
+function buildLaporanCekListHtml_() {
+  function namaFromLabel_(label) {
+    const text = String(label || "").trim();
+    const parts = text.split("·").map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 3) return parts.slice(2).join(" · ");
+    if (parts.length === 2) return parts[1];
+    return text;
+  }
+
+  const masterNama = {};
+  Object.keys(data.checklists || {}).forEach(sec => {
+    (data.checklists[sec] || []).forEach(it => {
+      if (it && it.id) masterNama[it.id] = namaFromLabel_(it.label || it.id);
+    });
+  });
+
+  const today = todayStr();
+  const latest = {};
+  (data.logs || []).forEach(l => {
+    if (!l || logDateStr(l.time) !== today) return;
+    const key = String(l.section || "") + "|" + Number(l.floor || 0);
+    if (!latest[key] || new Date(l.time) > new Date(latest[key].time)) latest[key] = l;
+  });
+
+  const seen = Object.create(null);
+  const names = [];
+  Object.keys(latest).forEach(k => {
+    ((latest[k] && latest[k].items) || []).forEach(it => {
+      if (!it || !it.val) return;
+      const nama = masterNama[it.id] || namaFromLabel_(it.label || it.id);
+      const key = nama.toLowerCase();
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      names.push(nama);
+    });
+  });
+  names.sort((a, b) => a.localeCompare(b));
+
+  const cellHtml = n => `
+    <div class="rounded-lg bg-slate-50 px-1.5 py-1 text-[9px] leading-tight text-slate-700 break-words">${esc(n)}</div>`;
+
+  const body = names.length
+    ? `<div class="mt-3" style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;align-items:stretch;">${names.map(cellHtml).join("")}</div>`
+    : `<div class="mt-2 text-[11px] font-semibold text-slate-500">Belum ada item yang dicek hari ini.</div>`;
+
+  return `
+    <div id="laporanCetakRingkasan" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 lg:p-5">
+      <div class="flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2.5">
+        <div>
+          <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Keterangan pengecekan</div>
+          <h3 class="text-sm font-bold text-slate-800 mt-0.5">Semua item yang dicek hari ini</h3>
+        </div>
+        <span class="text-[10px] font-bold px-2 py-1 rounded-md bg-blue-50 text-blue-700">${names.length} nama</span>
+      </div>
+      ${body}
+    </div>`;
+}
+
+/* ============ DOWNLOAD LAPORAN JPG ============ */
+async function downloadLaporanJpg() {
+  const el = document.getElementById("laporanList");
+  const btn = document.getElementById("btnDownloadLaporan");
+  if (!el || !el.innerHTML.trim()) {
+    toast("Belum ada laporan untuk diunduh.", "amber");
+    return;
+  }
+  if (typeof html2canvas !== "function") {
+    toast("Library download belum termuat. Periksa koneksi internet.", "rose");
+    return;
+  }
+
+  const label = btn ? btn.textContent : "";
+  let ringkasanNode = null;
+  if (btn) { btn.disabled = true; btn.textContent = "Menyiapkan..."; }
+  try {
+    renderLaporan();
+    const oldRingkasan = document.getElementById("laporanCetakRingkasan");
+    if (oldRingkasan && oldRingkasan.parentNode) oldRingkasan.parentNode.removeChild(oldRingkasan);
+    el.insertAdjacentHTML("beforeend", buildLaporanCekListHtml_());
+    ringkasanNode = document.getElementById("laporanCetakRingkasan");
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const captureWidth = Math.max(el.scrollWidth, el.offsetWidth || 0);
+    const captureHeight = Math.max(el.scrollHeight, el.offsetHeight || 0);
+    const canvas = await html2canvas(el, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: captureWidth,
+      height: captureHeight,
+      windowWidth: Math.max(document.documentElement.scrollWidth || 0, captureWidth)
+    });
+    const url = canvas.toDataURL("image/jpeg", 0.92);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `laporan-cek-area-${todayStr()}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast("Laporan berhasil diunduh.", "emerald");
+  } catch (err) {
+    toast("Gagal membuat JPG: " + (err.message || "unknown error"), "rose");
+  } finally {
+    if (ringkasanNode && ringkasanNode.parentNode) ringkasanNode.parentNode.removeChild(ringkasanNode);
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+/* ============ AREA DROPDOWN ============ */
+function populateAreaOptions() {
+  const sel = document.getElementById("area");
+  const current = sel.value;
+  const names = sections();
+  sel.innerHTML = `<option value="">Pilih bagian…</option>` +
+    names.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+  if (names.indexOf(current) !== -1) sel.value = current;
+  else sel.value = "";
+}
+
+/* ============ CLOCK ============ */
+function updateClock() {
+  document.getElementById("clock").textContent = fmtTime(new Date()) + " WIB";
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ============ VIEW SWITCH (dengan guard admin) ============ */
+function doSwitchView(v) {
+  ["cek","riwayat","rekap","laporan","kelola"].forEach(n => {
+    document.getElementById("view-" + n).classList.toggle("hidden", n !== v);
+    document.querySelectorAll(`[data-nav="${n}"]`).forEach(btn => {
+      btn.classList.toggle("tab-active", n === v);
+      btn.classList.toggle("nav-active", n === v);
+      btn.classList.toggle("text-slate-500", n !== v);
+    });
+  });
+  if (v === "riwayat") { expandedLogId = null; renderRiwayat(); }
+  if (v === "rekap") renderRekap();
+  if (v === "laporan") renderLaporan();
+  if (v === "kelola") renderKelola();
+  window.scrollTo({ top: 0 });
+}
+function switchView(v) {
+  if (v === "kelola" && !isAdminUnlocked()) {
+    askPin("Kelola Checklist", "Area admin. Masukkan PIN admin untuk melanjutkan.", async (input) => {
+      let res;
+      try {
+        res = await gasPost("adminLogin", {}, input);
+      } catch (err) {
+        toast("Perhatian: gagal terhubung ke server.", "rose");
+        return false;
+      }
+      if (!res.ok) {
+        toast(res.error || "Gagal login admin.", "rose");
+        return false;
+      }
+      if (res.result && res.result.valid) {
+        sessionStorage.setItem("adminUnlocked", "1");
+        sessionStorage.setItem("adminPw", input);
+        doSwitchView("kelola");
+        return true;
+      }
+      return false;
+    }, { maxLength: 64, inputmode: "text" });
+    return;
+  }
+  doSwitchView(v);
+}
+
+/* ============ RENDER CEK ============ */
+function renderSectionTabs() {
+  const el = document.getElementById("sectionTabs");
+  const done = getDoneToday();
+  el.innerHTML = "";
+  sections().forEach(name => {
+    const active = name === currentSection;
+    const floors = floorsForSection(name);
+    const badges = floors.map(f => {
+      const isDone = done.has(dk(name, f));
+      return `<span class="text-[9px] px-1.5 py-0.5 rounded font-bold ${isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">L${f} ${isDone ? 'S' : 'P'}</span>`;
+    }).join("");
+    const pendingFloors = floors.filter(f => !done.has(dk(name, f))).length;
+    const locked = data.pinSections[name] && !isSectionUnlocked(name);
+    el.innerHTML += `
+      <button data-sec="${esc(name)}" onclick="selectSection(this.dataset.sec)"
+        class="rounded-xl p-3 text-left border-2 transition relative ${active ? 'border-blue-600 bg-blue-50 shadow' : 'border-slate-200 bg-white hover:border-blue-300'}">
+        ${pendingFloors > 0 && !locked ? `<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 pulse-dot"></span>` : ""}
+        <div class="font-bold text-sm flex items-center gap-1 ${active ? 'text-blue-700' : 'text-slate-800'}">
+          ${locked ? 'PIN ' : ''}${esc(name)}
+        </div>
+        <div class="flex flex-wrap gap-1 mt-1.5">${badges}</div>
+      </button>`;
+  });
+}
+function renderFloorTabs() {
+  const el = document.getElementById("floorTabs");
+  const floors = floorsForSection(currentSection);
+  const done = getDoneToday();
+  el.className = `grid gap-2 ${floors.length === 1 ? 'grid-cols-1' : floors.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`;
+  el.innerHTML = floors.map(f => {
+    const active = f === currentFloor;
+    const isDone = done.has(dk(currentSection, f));
+    const itemCount = floorItems(currentSection, f).length;
+    return `
+      <button data-fl="${f}" onclick="selectFloor(Number(this.dataset.fl))"
+        class="rounded-xl p-3 text-left border-2 transition ${active ? 'border-blue-600 bg-blue-50 shadow' : 'border-slate-200 bg-white hover:border-blue-300'}">
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-sm ${active ? 'text-blue-700' : 'text-slate-800'}">Lantai ${f}</div>
+          ${isDone ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">SELESAI</span>` : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">PROGRES</span>`}
+        </div>
+        <div class="text-[11px] text-slate-500 mt-1">${itemCount} item</div>
+      </button>`;
+  }).join("");
+}
+function renderSummary() {
+  const bar = document.getElementById("summaryBar");
+  const items = floorItems(currentSection, currentFloor);
+  const total = items.length;
+  const key = dk(currentSection, currentFloor);
+  const draft = data.drafts[key] || {};
+  const savedIds = editingLogId ? new Set() : todayFilledIds(currentSection, currentFloor);
+  const draftIds = Object.keys(draft.values || {}).filter(k => draft.values[k]);
+  const filled = new Set([...savedIds, ...draftIds]).size;
+
+  if (total === 0) {
+    bar.innerHTML = `<div class="rounded-xl p-3 border border-dashed border-slate-300 bg-white text-center text-xs text-slate-500">
+      Belum ada item untuk ${esc(currentSection)} Lantai ${currentFloor}.<br>
+      <button onclick="switchView('kelola')" class="text-blue-600 underline mt-1">+ Tambah item di tab Kelola</button>
+    </div>`;
+    return;
+  }
+
+  const logsToday = todayLogsFor(currentSection, currentFloor);
+  const lastLog = [...data.logs]
+    .filter(l => l.section === currentSection && l.floor === currentFloor)
+    .sort((a, b) => new Date(b.time) - new Date(a.time))[0];
+  let info = "";
+  if (lastLog && lastLog.id !== editingLogId) {
+    const ok = !lastLog.hasIssue;
+    info = `<div class="mt-2 rounded-lg p-2.5 border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 text-xs ${ok ? 'text-emerald-800' : 'text-rose-800'}">
+          ${savedIds.size > 0 ? `<div class="text-[10px] mb-1 opacity-75">${savedIds.size} item tersimpan hari ini</div>` : ''}
+          <b>Terakhir:</b> ${esc(lastLog.area || '-')}
+          <div class="opacity-75">oleh ${esc(lastLog.officer)} · ${fmtDateTime(lastLog.time)}</div>
+          ${lastLog.hasIssue ? `<div class="font-semibold mt-0.5">${lastLog.ngCount} temuan NG</div>` : ""}
+        </div>
+        <span class="text-[10px] px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-200 text-emerald-800' : 'bg-rose-200 text-rose-800'} font-bold whitespace-nowrap">
+          ${ok ? "BERSIH" : "TEMUAN"}
+        </span>
+      </div>
+      <div class="text-[10px] opacity-75 mt-1">Untuk mengubah hasil, buka tab <b>Riwayat</b> → detail cek → tombol Revisi.</div>
+    </div>`;
+  }
+
+  const pct = total ? Math.round(filled / total * 100) : 0;
+  bar.innerHTML = `
+    <div class="bg-white border border-slate-200 rounded-xl p-3">
+      <div class="flex items-center justify-between mb-1.5">
+        <div class="text-xs text-slate-600 font-medium">Progress — ${esc(currentSection)} L${currentFloor}</div>
+        <div class="text-xs font-bold text-slate-700">${filled}/${total} (${pct}%)</div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div class="h-full ${editingLogId ? 'bg-amber-500' : 'bg-blue-500'} transition-all" style="width:${pct}%"></div>
+      </div>
+      ${info}
+    </div>`;
+}
+function renderItems() {
+  const list = document.getElementById("itemList");
+  const items = floorItems(currentSection, currentFloor);
+  document.getElementById("secTitle").textContent = `${currentSection} · Lantai ${currentFloor}`;
+
+  if (items.length === 0) {
+    list.innerHTML = `<div class="text-center text-slate-500 py-12 text-sm">
+      Belum ada item untuk bagian ini di Lantai ${currentFloor}.<br>
+      <button onclick="switchView('kelola')" class="text-blue-600 underline mt-2">Buka tab Kelola →</button>
+    </div>`;
+    updateResetVisibility();
+    return;
+  }
+
+  let hiddenIds;
+  if (editingLogId) {
+    const log = data.logs.find(l => l.id === editingLogId);
+    const loggedIds = log ? (log.items || []).filter(it => it && it.id).map(it => String(it.id)) : [];
+    hiddenIds = new Set(items.filter(item => loggedIds.indexOf(String(item.id)) === -1).map(item => String(item.id)));
+  } else {
+    hiddenIds = todayFilledIds(currentSection, currentFloor);
+  }
+  const pendingItems = items.filter(item => !hiddenIds.has(String(item.id)));
+
+  if (pendingItems.length === 0) {
+    list.innerHTML = `<div class="text-center text-slate-500 py-12 text-sm">
+      Semua item sudah tersimpan.<br>
+      Untuk mengubah hasil, buka tab <b>Riwayat</b> → detail cek → tombol Revisi.
+    </div>`;
+    updateResetVisibility();
+    return;
+  }
+
+  list.innerHTML = pendingItems.map(item => {
+    const val = currentValues[item.id] || "";
+    return `
+      <div class="px-4 py-3 flex items-start justify-between gap-3 ${val ? 'row-' + val.toLowerCase() : ''}">
+        <div class="flex-1 text-sm text-slate-800">${esc(item.label)}</div>
+        <div class="flex items-center gap-1 shrink-0">${photoButton(item.id)}${buttons(item.id, val)}</div>
+      </div>`;
+  }).join("");
+
+  updateResetVisibility();
+}
+function updateResetVisibility() {
+  const hasContent = Object.keys(currentValues).length > 0
+    || Object.keys(currentPhotos).length > 0
+    || document.getElementById("area").value
+    || document.getElementById("note").value
+    || document.getElementById("officer").value
+    || editingLogId;
+  document.getElementById("btnReset").classList.toggle("hidden", !hasContent);
+}
+function buttons(key, val) {
+  const base = "text-xs px-3 py-1.5 rounded-lg border font-semibold transition select-none";
+  const style = {
+    OK: val === "OK" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50",
+    NG: val === "NG" ? "bg-rose-600 text-white border-rose-600"       : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50",
+  };
+  return ["OK","NG"].map(v =>
+    `<button data-key="${esc(key)}" data-val="${v}" onclick="setValue(this.dataset.key, this.dataset.val)" class="${base} ${style[v]}">${v}</button>`
+  ).join("");
+}
+
+/* ============ FOTO PER ITEM ============ */
+function openPhotoUrl(url) {
+  if (!url) return;
+  const w = window.open(url, "_blank");
+  if (w) w.opener = null;
+}
+
+function photoButton(key) {
+  const photo = currentPhotos[key];
+  const isUploading = uploadingPhotoKey === key;
+
+  if (isUploading) {
+    return `<span class="w-8 h-8 grid place-items-center text-sm shrink-0" title="Mengunggah...">...</span>`;
+  }
+  if (photo && photo.thumb) {
+    return `
+      <span class="relative shrink-0">
+        <img src="${esc(photo.thumb)}" data-url="${esc(photo.view)}" onclick="openPhotoUrl(this.dataset.url)"
+             onerror="this.style.display='none'"
+             class="w-8 h-8 rounded-lg object-cover border border-emerald-400 cursor-pointer" title="Lihat foto">
+        <button data-key="${esc(key)}" onclick="removePhoto(this.dataset.key)"
+                class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-600 text-white text-[9px] leading-4 text-center font-bold"
+                title="Hapus foto">Hapus</button>
+      </span>`;
+  }
+  return `
+    <label class="w-8 h-8 rounded-lg border border-slate-300 text-slate-400 grid place-items-center cursor-pointer hover:bg-slate-50 shrink-0" title="Tambah foto">
+      Foto
+      <input type="file" accept="image/*" capture="environment" class="hidden"
+             onchange="handlePhotoFile('${esc(key)}', this)">
+    </label>`;
+}
+
+function removePhoto(key) {
+  delete currentPhotos[key];
+  persistDraft();
+  renderItems();
+}
+
+async function handlePhotoFile(key, inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  uploadingPhotoKey = key;
+  renderItems();
+  try {
+    const base64 = await compressImageToBase64(file, 1000, 0.7);
+    const res = await gasPost("uploadPhoto", {
+      filename: `item_${key}_${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+      base64,
+      section: currentSection,
+      pin: sessionStorage.getItem("pin_" + currentSection) || "",
+    });
+    if (!res.ok) {
+      const msg = res.error || "";
+      if (/PIN bagian/i.test(msg)) {
+        sessionStorage.removeItem("unlock_" + currentSection);
+        sessionStorage.removeItem("pin_" + currentSection);
+        toast("PIN bagian berubah. Masukkan PIN lagi.", "amber");
+        selectSection(currentSection);
+      } else {
+        toast("Gagal unggah foto: " + msg, "rose");
+      }
+      return;
+    }
+    currentPhotos[key] = { thumb: res.result.thumbUrl, view: res.result.viewUrl, fileId: res.result.fileId };
+    persistDraft();
+    toast("Foto terlampir", "emerald");
+  } catch (err) {
+    toast("Perhatian: gagal mengunggah foto. Periksa koneksi internet.", "rose");
+  } finally {
+    uploadingPhotoKey = null;
+    inputEl.value = "";
+    renderItems();
+  }
+}
+
+/* ============ CATAT PERBAIKAN NG ============ */
+function wibInputValue(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(date);
+  const get = t => (parts.find(p => p.type === t) || {}).value || "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+function wibLocalToIso(value) {
+  if (!value) return "";
+  const d = new Date(value + ":00+07:00");
+  return isNaN(d.getTime()) ? "" : d.toISOString();
+}
+function renderRepairPhotoPreview() {
+  const el = document.getElementById("repairPhotoPreview");
+  if (!el) return;
+  if (!repairPhoto || !repairPhoto.thumb) {
+    el.innerHTML = `<span class="text-[11px] text-slate-400">Belum ada foto.</span>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+      <img src="${esc(repairPhoto.thumb)}" class="w-14 h-14 rounded object-cover border border-slate-300" alt="Foto perbaikan" />
+      <div class="flex-1 min-w-0">
+        <div class="text-[11px] font-semibold text-emerald-700">Foto siap disimpan</div>
+        <button onclick="removeRepairPhoto()" class="text-[11px] text-rose-600 font-semibold mt-1">Hapus foto</button>
+      </div>
+    </div>`;
+}
+function openRepairForm(logId, itemId) {
+  const log = data.logs.find(l => l.id === logId);
+  if (!log) { toast("Data cek tidak ditemukan.", "rose"); return; }
+  const item = (log.items || []).find(it => String(it.id) === String(itemId));
+  if (!item || item.val !== "NG") { toast("Catatan perbaikan hanya untuk item NG.", "rose"); return; }
+  if (data.pinSections[log.section] && !isSectionUnlocked(log.section)) {
+    askPin(`Bagian: ${log.section}`, "Masukkan PIN bagian untuk mencatat perbaikan.", async (input) => {
+      if (await verifySectionPin(log.section, input)) {
+        doOpenRepairForm(log, item);
+        return true;
+      }
+      return false;
+    }, { maxLength: 8, inputmode: "numeric" });
+    return;
+  }
+  doOpenRepairForm(log, item);
+}
+function doOpenRepairForm(log, item) {
+  repairLogId = log.id;
+  repairItemId = item.id;
+  repairPhoto = null;
+  repairUploading = false;
+  document.getElementById("repairSubtitle").textContent = `${log.section} · Lantai ${log.floor} · ${log.area || "-"}`;
+  document.getElementById("repairItemLabel").textContent = item.label || item.id;
+  document.getElementById("repairItemNote").textContent = item.note ? `Catatan temuan: "${item.note}"` : "Tidak ada catatan temuan.";
+  document.getElementById("repairOfficer").value = "";
+  document.getElementById("repairTime").value = wibInputValue();
+  document.getElementById("repairNote").value = "";
+  const photoLabel = document.getElementById("btnRepairPhoto");
+  if (photoLabel) photoLabel.classList.remove("opacity-50", "pointer-events-none");
+  renderRepairPhotoPreview();
+  document.getElementById("repairModal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("repairOfficer").focus(), 100);
+}
+function closeRepairForm() {
+  document.getElementById("repairModal").classList.add("hidden");
+  repairLogId = null;
+  repairItemId = null;
+  repairPhoto = null;
+  repairUploading = false;
+}
+function removeRepairPhoto() {
+  repairPhoto = null;
+  renderRepairPhotoPreview();
+}
+async function handleRepairPhotoFile(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file || !repairLogId) return;
+  const log = data.logs.find(l => l.id === repairLogId);
+  if (!log) { toast("Data cek tidak ditemukan.", "rose"); return; }
+  repairUploading = true;
+  const photoLabel = document.getElementById("btnRepairPhoto");
+  if (photoLabel) photoLabel.classList.add("opacity-50", "pointer-events-none");
+  try {
+    const base64 = await compressImageToBase64(file, 1000, 0.7, document.getElementById("repairOfficer").value.trim());
+    const res = await gasPost("uploadPhoto", {
+      filename: `perbaikan_${repairItemId}_${Date.now()}.jpg`,
+      mimeType: "image/jpeg",
+      base64,
+      section: log.section,
+      pin: sessionStorage.getItem("pin_" + log.section) || "",
+    });
+    if (!res.ok) {
+      const msg = res.error || "";
+      if (/PIN bagian/i.test(msg)) {
+        sessionStorage.removeItem("unlock_" + log.section);
+        sessionStorage.removeItem("pin_" + log.section);
+        toast("PIN bagian berubah. Masukkan PIN lagi.", "amber");
+      } else {
+        toast("Gagal unggah foto perbaikan: " + msg, "rose");
+      }
+      return;
+    }
+    repairPhoto = { thumb: res.result.thumbUrl, view: res.result.viewUrl, fileId: res.result.fileId };
+    renderRepairPhotoPreview();
+    toast("Foto perbaikan terlampir", "emerald");
+  } catch (err) {
+    toast("Perhatian: gagal mengunggah foto. Periksa koneksi internet.", "rose");
+  } finally {
+    repairUploading = false;
+    if (photoLabel) photoLabel.classList.remove("opacity-50", "pointer-events-none");
+    inputEl.value = "";
+  }
+}
+async function saveRepair() {
+  if (!repairLogId || !repairItemId) return;
+  if (repairUploading) { alert("Foto perbaikan masih diunggah. Tunggu sebentar."); return; }
+  const log = data.logs.find(l => l.id === repairLogId);
+  if (!log) { toast("Data cek tidak ditemukan.", "rose"); closeRepairForm(); return; }
+
+  const officer = document.getElementById("repairOfficer").value.trim();
+  if (!officer) { alert("Isi nama petugas perbaikan dulu."); document.getElementById("repairOfficer").focus(); return; }
+  const note = document.getElementById("repairNote").value.trim();
+  if (!note) { alert("Isi catatan perbaikan dulu."); document.getElementById("repairNote").focus(); return; }
+  const time = wibLocalToIso(document.getElementById("repairTime").value);
+  if (!time) { alert("Isi waktu perbaikan dulu."); document.getElementById("repairTime").focus(); return; }
+
+  const logId = repairLogId;
+  const itemId = repairItemId;
+  const btn = document.getElementById("btnRepairSave");
+  const label = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Menyimpan..."; }
+  try {
+    const res = await gasPost("addRepair", {
+      logId: logId,
+      itemId: itemId,
+      time: time,
+      officer: officer,
+      note: note,
+      photo: repairPhoto,
+      pin: sessionStorage.getItem("pin_" + log.section) || "",
+    });
+    if (!res.ok) {
+      const msg = res.error || "";
+      if (/PIN bagian/i.test(msg)) {
+        sessionStorage.removeItem("unlock_" + log.section);
+        sessionStorage.removeItem("pin_" + log.section);
+        toast("PIN bagian berubah. Masukkan PIN lagi.", "amber");
+        closeRepairForm();
+        openRepairForm(logId, itemId);
+      } else {
+        toast("Gagal menyimpan perbaikan: " + msg, "rose");
+      }
+      return;
+    }
+    closeRepairForm();
+    applyRepairLocally_(res.result);
+    toast("Perbaikan tercatat.", "emerald");
+    renderRiwayat();
+    renderAll();
+    if (!document.getElementById("view-rekap").classList.contains("hidden")) renderRekap();
+    if (!document.getElementById("view-laporan").classList.contains("hidden")) renderLaporan();
+  } catch (err) {
+    toast("Perhatian: gagal menyimpan perbaikan. Periksa koneksi internet.", "rose");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+function photoStampLines(officerOverride) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("id-ID", {
+    timeZone: APP_TZ, weekday: "long", day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).formatToParts(now);
+  const get = t => (parts.find(p => p.type === t) || {}).value || "";
+  const officer = String(officerOverride || (document.getElementById("officer") || {}).value || "").trim() || "(nama belum diisi)";
+  return [
+    `${get("weekday")}, ${get("day")}-${get("month")}-${get("year")}  ${get("hour")}:${get("minute")}:${get("second")}`,
+    `Oleh: ${officer}`
+  ];
+}
+
+// Kompres foto di browser dulu sebelum dikirim (hemat kuota & lebih cepat di sinyal
+// gudang yang kadang kurang stabil), sekalian bubuhkan stempel hari/tanggal/jam/nama.
+function compressImageToBase64(file, maxWidth, quality, officerOverride) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Stempel di pojok kanan bawah
+        const lines = photoStampLines(officerOverride);
+        const fontSize = Math.max(13, Math.round(canvas.width / 38));
+        const lineHeight = fontSize * 14 / 10;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        const textWidth = Math.max(...lines.map(l => ctx.measureText(l).width));
+        const paddingX = 10, paddingY = 8;
+        const boxW = textWidth + paddingX * 2;
+        const boxH = lines.length * lineHeight + paddingY * 2;
+        const boxX = canvas.width - boxW - 10;
+        const boxY = canvas.height - boxH - 10;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillStyle = "#ffffff";
+        ctx.textBaseline = "top";
+        lines.forEach((line, i) => {
+          ctx.fillText(line, boxX + paddingX, boxY + paddingY + i * lineHeight);
+        });
+
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl.split(",")[1]); // buang prefix "data:image/jpeg;base64,"
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============ REVISION BANNER ============ */
+function renderRevisionBanner() {
+  const el = document.getElementById("revisionBanner");
+  const btn = document.getElementById("btnSubmit");
+  if (!editingLogId) {
+    el.classList.add("hidden"); el.innerHTML = "";
+    btn.textContent = "Simpan Hasil Pengecekan";
+    btn.classList.remove("bg-amber-600","hover:bg-amber-700","shadow-amber-600/30");
+    btn.classList.add("bg-blue-600","hover:bg-blue-700","shadow-blue-600/30");
+    return;
+  }
+  const log = data.logs.find(l => l.id === editingLogId);
+  if (!log) {
+    editingLogId = null;
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    btn.textContent = "Simpan Hasil Pengecekan";
+    btn.classList.remove("bg-amber-600","hover:bg-amber-700","shadow-amber-600/30");
+    btn.classList.add("bg-blue-600","hover:bg-blue-700","shadow-blue-600/30");
+    return;
+  }
+  el.classList.remove("hidden");
+  el.className = "slide-down rounded-xl bg-blue-50 border-2 border-blue-400 p-3";
+  el.innerHTML = `
+    <div class="flex items-start gap-2.5">
+      <div class="w-8 h-8 rounded-full bg-blue-200 grid place-items-center text-lg shrink-0">REV</div>
+      <div class="flex-1">
+        <div class="font-bold text-sm text-blue-900">Mode Revisi — ${esc(log.section)} · L${log.floor}</div>
+        <div class="text-xs text-blue-800 mt-0.5">
+          Area: <b>${esc(log.area || '-')}</b><br>
+          Sebelumnya: <b>${fmtDateTime(log.time)}</b> oleh <b>${esc(log.officer)}</b>.<br>
+          Isi nama dan area Anda sekarang untuk revisi ini.
+        </div>
+        <button onclick="cancelRevision()" class="mt-2 text-[11px] bg-white border border-blue-400 text-blue-900 font-semibold px-2.5 py-1 rounded-lg hover:bg-blue-100">Batalkan Revisi</button>
+      </div>
+    </div>`;
+  btn.textContent = "Update Hasil Revisi";
+  btn.classList.remove("bg-blue-600","hover:bg-blue-700","shadow-blue-600/30");
+  btn.classList.add("bg-amber-600","hover:bg-amber-700","shadow-amber-600/30");
+}
+
+/* ============ INTERAKSI CEK (dengan guard PIN bagian) ============ */
+function doSelectSection(name) {
+  if (!data.checklists[name]) return;
+  if (editingLogId) {
+    const log = data.logs.find(l => l.id === editingLogId);
+    if (log && log.section !== name) {
+      if (!confirm("Sedang revisi bagian lain. Batalkan revisi?")) return;
+      editingLogId = null;
+      delete data.drafts[dk(log.section, log.floor)];
+      save();
+    }
+  }
+  currentSection = name;
+  const floors = floorsForSection(name);
+  if (!floors.includes(currentFloor)) currentFloor = floors[0] || 1;
+  loadDraft();
+  renderAll();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function selectSection(name) {
+  if (data.pinSections[name] && !isSectionUnlocked(name)) {
+    askPin(`Bagian: ${name}`, "Bagian ini diproteksi PIN. Masukkan PIN bagian.", async (input) => {
+      if (await verifySectionPin(name, input)) {
+        doSelectSection(name);
+        return true;
+      }
+      return false;
+    }, { maxLength: 8, inputmode: "numeric" });
+    return;
+  }
+  doSelectSection(name);
+}
+function selectFloor(f) {
+  if (editingLogId) {
+    const log = data.logs.find(l => l.id === editingLogId);
+    if (log && (log.section !== currentSection || log.floor !== f)) {
+      if (!confirm("Sedang revisi di lantai lain. Batalkan revisi?")) return;
+      editingLogId = null;
+      delete data.drafts[dk(log.section, log.floor)];
+      save();
+    }
+  }
+  currentFloor = f;
+  loadDraft();
+  renderAll();
+}
+function jumpTo(section, floor) {
+  if (!data.checklists[section]) return;
+  if (data.pinSections[section] && !isSectionUnlocked(section)) {
+    askPin(`Bagian: ${section}`, "Bagian ini diproteksi PIN. Masukkan PIN bagian.", async (input) => {
+      if (await verifySectionPin(section, input)) {
+        doJumpTo(section, floor);
+        return true;
+      }
+      return false;
+    }, { maxLength: 8, inputmode: "numeric" });
+    return;
+  }
+  doJumpTo(section, floor);
+}
+function doJumpTo(section, floor) {
+  if (editingLogId) {
+    const log = data.logs.find(l => l.id === editingLogId);
+    if (log && (log.section !== section || log.floor !== floor)) {
+      if (!confirm("Sedang revisi di cek lain. Batalkan revisi?")) return;
+      editingLogId = null;
+      delete data.drafts[dk(log.section, log.floor)];
+      save();
+    }
+  }
+  currentSection = section;
+  currentFloor = floor;
+  loadDraft();
+  doSwitchView("cek");
+  renderAll();
+}
+function loadDraft() {
+  const key = dk(currentSection, currentFloor);
+  const d = data.drafts[key] || {};
+  currentValues = { ...(d.values || {}) };
+  currentPhotos = { ...(d.photos || {}) };
+  populateAreaOptions();
+  document.getElementById("area").value = d.area || "";
+  document.getElementById("note").value = d.note || "";
+  document.getElementById("officer").value = d.officer || "";
+}
+function setValue(key, val) {
+  if (currentValues[key] === val) delete currentValues[key];
+  else currentValues[key] = val;
+  persistDraft();
+  renderItems(); renderSummary();
+}
+function persistDraft() {
+  const k = dk(currentSection, currentFloor);
+  data.drafts[k] = {
+    values: currentValues,
+    photos: currentPhotos,
+    area: document.getElementById("area").value,
+    note: document.getElementById("note").value,
+    officer: document.getElementById("officer").value,
+  };
+  save();
+  updateResetVisibility();
+}
+document.getElementById("area").addEventListener("change", persistDraft);
+document.getElementById("note").addEventListener("input", persistDraft);
+document.getElementById("officer").addEventListener("input", persistDraft);
+
+/* ============ PATCH LOKAL SETELAH SIMPAN ============ */
+function itemAfterSave_(it, old) {
+  const repairs = old && Array.isArray(old.repairs) ? old.repairs.slice() : [];
+  return {
+    id: it.id,
+    label: it.label,
+    val: it.val,
+    photo: it.photo || null,
+    area: it.area || "",
+    officer: it.officer || "",
+    note: it.note !== undefined && it.note !== null ? it.note : "",
+    time: it.time || "",
+    repairs: repairs,
+    repairCount: repairs.length,
+    lastRepairAt: repairs.length ? repairs[repairs.length - 1].time : "",
+    repairStatus: repairs.length ? "SELESAI" : (it.val === "NG" ? "OPEN" : "")
+  };
+}
+function recomputeLogFlags_(log) {
+  const items = log.items || [];
+  const ng = items.filter(it => it && it.val === "NG");
+  log.hasIssue = ng.length > 0;
+  log.ngCount = ng.length;
+  log.ngItems = ng.map(it => it.label);
+}
+function sortLogs_() {
+  data.logs.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+}
+function applySavedLogLocally_(result, payload, snapshot, wasRevision) {
+  if (!result || !result.id) return;
+  let log = data.logs.find(l => l.id === result.id);
+  if (wasRevision) {
+    if (!log) return;
+    const oldById = {};
+    (log.items || []).forEach(it => { oldById[String(it.id)] = it; });
+    log.items = snapshot.map(it => itemAfterSave_(it, oldById[String(it.id)]));
+    log.area = payload.area;
+    log.officer = payload.officer;
+    log.note = payload.note || "";
+    log.revisedAt = result.revisedAt || new Date().toISOString();
+    log.revisionCount = (Number(log.revisionCount) || 0) + 1;
+  } else {
+    if (!log) {
+      log = {
+        id: result.id,
+        section: payload.section,
+        floor: Number(payload.floor),
+        area: payload.area,
+        officer: payload.officer,
+        note: payload.note || "",
+        items: [],
+        time: result.time || new Date().toISOString(),
+        revisedAt: null,
+        revisionCount: 0
+      };
+      data.logs.push(log);
+    }
+    const oldById = {};
+    (log.items || []).forEach(it => { oldById[String(it.id)] = it; });
+    const order = [];
+    (log.items || []).forEach(it => { if (order.indexOf(String(it.id)) === -1) order.push(String(it.id)); });
+    snapshot.forEach(it => { if (order.indexOf(String(it.id)) === -1) order.push(String(it.id)); });
+    log.items = order.map(id => {
+      const snap = snapshot.find(it => String(it.id) === id);
+      return snap ? itemAfterSave_(snap, oldById[id]) : oldById[id];
+    }).filter(Boolean);
+    log.area = payload.area || log.area;
+    log.officer = payload.officer || log.officer;
+    log.note = payload.note || log.note;
+    log.time = result.time || log.time;
+  }
+  recomputeLogFlags_(log);
+  sortLogs_();
+}
+function applyRepairLocally_(repair) {
+  if (!repair) return;
+  const log = data.logs.find(l => l.id === repair.logId);
+  if (!log) return;
+  const item = (log.items || []).find(it => String(it.id) === String(repair.itemId));
+  if (!item) return;
+  if (!Array.isArray(item.repairs)) item.repairs = [];
+  item.repairs.push(repair);
+  item.repairCount = item.repairs.length;
+  item.lastRepairAt = repair.time || "";
+  item.repairStatus = "SELESAI";
+  if (!repair.logOkId) {
+    const nextOk = data.logs
+      .filter(l => l && l.section === log.section && Number(l.floor) === Number(log.floor) && String(l.time) > String(log.time))
+      .filter(l => (l.items || []).some(it => String(it.id) === String(item.id) && it.val === "OK"))
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)))[0];
+    if (nextOk) repair.logOkId = nextOk.id;
+  }
+}
+
+/* ============ SUBMIT ============ */
+async function submit() {
+  const items = floorItems(currentSection, currentFloor);
+  if (items.length === 0) { alert("Tidak ada item."); return; }
+  const revisingLog = editingLogId ? data.logs.find(l => l.id === editingLogId) : null;
+  const revisionIds = revisingLog
+    ? new Set((revisingLog.items || []).filter(it => it && it.id).map(it => String(it.id)))
+    : new Set();
+  const savedIds = editingLogId ? new Set() : todayFilledIds(currentSection, currentFloor);
+  const pendingItems = items.filter(i => !savedIds.has(String(i.id)));
+  const activeKeys = editingLogId
+    ? items.filter(i => revisionIds.has(String(i.id))).map(i => i.id)
+    : pendingItems.filter(i => currentValues[i.id]).map(i => i.id);
+
+  if (editingLogId) {
+    const missing = activeKeys.filter(k => !currentValues[k]);
+    if (missing.length) { alert(`Masih ada ${missing.length} item belum diisi.`); return; }
+  } else {
+    if (!pendingItems.length) {
+      alert("Semua item sudah tersimpan. Gunakan tab Riwayat → Revisi kalau mau mengubah hasilnya.");
+      return;
+    }
+    if (!activeKeys.length) { alert("Isi minimal satu item dulu."); return; }
+  }
+  const area = document.getElementById("area").value.trim();
+  if (!area) { alert("Isi area kerja dulu."); document.getElementById("area").focus(); return; }
+  const officer = document.getElementById("officer").value.trim();
+  if (!officer) { alert("Isi nama petugas dulu."); document.getElementById("officer").focus(); return; }
+  const note = document.getElementById("note").value.trim();
+  const ngKeys = activeKeys.filter(k => currentValues[k] === "NG");
+  const hasIssue = ngKeys.length > 0;
+  if (hasIssue && !note) {
+    alert("Ada temuan NG — tolong isi catatan temuan.");
+    document.getElementById("note").focus(); return;
+  }
+  const ngWithoutPhoto = ngKeys.filter(k => !currentPhotos[k]);
+  if (ngWithoutPhoto.length) {
+    alert(`Ada ${ngWithoutPhoto.length} item NG yang belum dilampiri foto. Foto wajib untuk temuan NG.`);
+    return;
+  }
+  if (uploadingPhotoKey) {
+    alert("Masih ada foto yang sedang diunggah, tunggu sebentar.");
+    return;
+  }
+
+  const key = dk(currentSection, currentFloor);
+
+  if (!editingLogId && getDoneToday().has(key)) {
+    alert(`${currentSection} Lantai ${currentFloor} sudah dicek hari ini.\n\nGunakan tab Riwayat → buka detail cek → tombol Revisi kalau mau mengubah hasilnya, bukan mengisi ulang dari nol.`);
+    return;
+  }
+
+  const snapshotItems = items.filter(i => activeKeys.indexOf(i.id) !== -1);
+  const submittedAt = new Date().toISOString();
+  const snapshot = snapshotItems.map(i => {
+    const row = {
+      id: i.id, label: i.label, val: currentValues[i.id],
+      photo: currentPhotos[i.id] ? {
+        thumb: currentPhotos[i.id].thumb,
+        view: currentPhotos[i.id].view,
+        fileId: currentPhotos[i.id].fileId || ""
+      } : null,
+    };
+    if (!editingLogId) {
+      row.area = area;
+      row.officer = officer;
+      row.note = note;
+      row.time = submittedAt;
+    }
+    return row;
+  });
+  const ngItems = snapshot.filter(i => i.val === "NG").map(i => i.label);
+
+  if (editingLogId) {
+    const log = data.logs.find(l => l.id === editingLogId);
+    if (!log) { editingLogId = null; return; }
+    if (!confirm(`Update revisi ${log.section} L${log.floor} — ${area}?`)) return;
+  }
+
+  const btn = document.getElementById("btnSubmit");
+  const wasRevision = !!editingLogId;
+  btn.disabled = true;
+  try {
+    let res;
+    const sectionPin = sessionStorage.getItem("pin_" + currentSection) || "";
+    if (wasRevision) {
+      res = await gasPost("updateLog", {
+        id: editingLogId, area, officer, note, items: snapshot,
+        hasIssue, ngCount: ngKeys.length, ngItems, pin: sectionPin
+      });
+    } else {
+      res = await gasPost("addLog", {
+        section: currentSection, floor: currentFloor, area, officer, note,
+        items: snapshot, hasIssue, ngCount: ngKeys.length, ngItems, pin: sectionPin
+      });
+    }
+    if (!res.ok) {
+      const msg = res.error || "";
+      if (/PIN bagian/i.test(msg)) {
+        sessionStorage.removeItem("unlock_" + currentSection);
+        sessionStorage.removeItem("pin_" + currentSection);
+        toast("PIN bagian berubah. Masukkan PIN lagi.", "amber");
+        selectSection(currentSection);
+      } else {
+        toast("Gagal menyimpan: " + msg, "rose");
+      }
+      return;
+    }
+
+    editingLogId = null;
+    if (wasRevision) {
+      currentValues = {}; currentPhotos = {};
+    } else {
+      activeKeys.forEach(k => { delete currentValues[k]; delete currentPhotos[k]; });
+    }
+    document.getElementById("area").value = "";
+    document.getElementById("note").value = "";
+    document.getElementById("officer").value = "";
+    if (wasRevision) delete data.drafts[key];
+    else persistDraft();
+    save();
+
+    // Patch data lokal supaya toast dan daftar item langsung berubah tanpa
+    // menunggu round-trip loadAll() ke server. Polling meta akan menyamakan
+    // dengan data server beberapa saat kemudian.
+    applySavedLogLocally_(
+      res.result,
+      wasRevision ? { area, officer, note } : { section: currentSection, floor: currentFloor, area, officer, note },
+      snapshot,
+      wasRevision
+    );
+    renderAll();
+
+    if (wasRevision) {
+      toast("Revisi berhasil disimpan", "emerald");
+    } else {
+      const remaining = pendingItems.length - activeKeys.length;
+      toast(remaining > 0
+        ? `${currentSection} L${currentFloor} — ${activeKeys.length} item tersimpan. Sisa ${remaining} item.`
+        : (getPendingToday().length === 0 ? "Semua cek hari ini sudah selesai!" : `${currentSection} L${currentFloor} selesai.`), "emerald");
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (err) {
+    toast("Perhatian: gagal terhubung ke server. Periksa koneksi internet, lalu coba lagi.", "rose");
+  } finally {
+    btn.disabled = false;
+  }
+}
+function resetSection() {
+  if (editingLogId) {
+    if (!confirm("Reset akan membatalkan revisi. Lanjutkan?")) return;
+    editingLogId = null;
+    delete data.drafts[dk(currentSection, currentFloor)];
+    currentValues = {}; currentPhotos = {};
+    document.getElementById("area").value = ""; document.getElementById("note").value = ""; document.getElementById("officer").value = "";
+    save(); renderAll(); toast("Revisi dibatalkan", "amber"); return;
+  }
+  const key = dk(currentSection, currentFloor);
+  const d = data.drafts[key];
+  const hasDraft = d && (
+    Object.keys(d.values || {}).length > 0 ||
+    Object.keys(d.photos || {}).length > 0 ||
+    d.area || d.note || d.officer
+  );
+  if (!hasDraft) { toast("Tidak ada isian untuk direset", "amber"); return; }
+  if (!confirm(`Reset isian ${currentSection} Lantai ${currentFloor}?`)) return;
+  delete data.drafts[key];
+  currentValues = {}; currentPhotos = {};
+  document.getElementById("area").value = ""; document.getElementById("note").value = ""; document.getElementById("officer").value = "";
+  save(); renderAll(); toast("Isian berhasil direset", "emerald");
+}
+
+function toast(msg, color = "emerald") {
+  const colors = { emerald: "bg-emerald-600", amber: "bg-amber-500", rose: "bg-rose-600", blue: "bg-blue-600" };
+  const t = document.createElement("div");
+  t.textContent = msg;
+  t.className = `fixed top-20 left-1/2 -translate-x-1/2 ${colors[color]} text-white text-sm px-5 py-2.5 rounded-xl shadow-lg z-50 max-w-[90%] text-center`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+/* ============ KELOLA ============ */
+function renderKelola() {
+  const adminPinInput = document.getElementById("adminPinInput");
+  adminPinInput.value = "";
+  adminPinInput.placeholder = "Diatur di Apps Script";
+  adminPinInput.disabled = true;
+
+  const el = document.getElementById("kelolaSections");
+  const names = sections();
+  if (!kelolaSection && names.length) kelolaSection = names[0];
+  if (kelolaSection && !data.checklists[kelolaSection]) kelolaSection = names[0] || null;
+
+  el.innerHTML = names.map(n => {
+    const active = n === kelolaSection;
+    const count = getItems(n).length;
+    const locked = data.pinSections[n] ? 'PIN ' : '';
+    return `
+      <button data-sec="${esc(n)}" onclick="selectKelolaSection(this.dataset.sec)"
+        class="rounded-xl p-3 text-left border-2 transition ${active ? 'border-blue-600 bg-blue-50 shadow' : 'border-slate-200 bg-white hover:border-blue-300'}">
+        <div class="font-bold text-sm ${active ? 'text-blue-700' : 'text-slate-800'}">${locked}${esc(n)}</div>
+        <div class="text-[11px] text-slate-500 mt-1">${count} item</div>
+      </button>`;
+  }).join("");
+
+  document.getElementById("btnEditSection").classList.toggle("hidden", !kelolaSection);
+  document.getElementById("btnDelSection").classList.toggle("hidden", !kelolaSection);
+
+  // pin settings per section
+  const pinsEl = document.getElementById("sectionPins");
+  pinsEl.innerHTML = sections().map(name => {
+    const hasPin = !!data.pinSections[name];
+    return `
+      <div class="flex items-center gap-2 text-xs">
+        <span class="flex-1 font-medium truncate">${esc(name)}</span>
+        <input data-sec="${esc(name)}" type="text" inputmode="numeric" maxlength="8" value=""
+          placeholder="${hasPin ? 'Isi PIN baru' : 'Tidak diproteksi'}"
+          class="w-32 border border-slate-300 rounded px-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+          onchange="saveSectionPin(this.dataset.sec, this.value)"
+          onkeydown="if(event.key==='Enter') this.blur()" />
+        ${hasPin
+          ? `<button data-sec="${esc(name)}" onclick="saveSectionPin(this.dataset.sec, '')" class="text-[10px] text-rose-600 font-semibold shrink-0 hover:underline">Hapus</button>`
+          : '<span class="text-slate-400 shrink-0">—</span>'}
+      </div>`;
+  }).join("");
+
+  const itemsEl = document.getElementById("kelolaItems");
+  const titleEl = document.getElementById("kelolaTitle");
+  const subEl = document.getElementById("kelolaSub");
+  if (!kelolaSection) {
+    titleEl.textContent = "—";
+    subEl.textContent = "Belum ada bagian. Klik '+ Tambah Bagian'.";
+    itemsEl.innerHTML = "";
+    return;
+  }
+  const items = getItems(kelolaSection);
+  titleEl.textContent = kelolaSection;
+  subEl.textContent = `${items.length} item · Item tanpa lantai otomatis Lantai 1`;
+
+  if (items.length === 0) {
+    itemsEl.innerHTML = `<div class="text-center text-slate-500 py-8 text-sm">Belum ada item.<br>Klik <b>+ Tambah Item</b> di atas.</div>`;
+    return;
+  }
+  itemsEl.innerHTML = items.map(item => {
+    const floors = (item.floors && item.floors.length) ? item.floors : [1];
+    const chips = [1,2,3].map(f => floors.includes(f)
+      ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">L${f}</span>`
+      : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-medium">L${f}</span>`
+    ).join(" ");
+    return `
+      <div class="px-4 py-3 flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm text-slate-800">${esc(item.label)}</div>
+          <div class="flex gap-1 mt-1">${chips}</div>
+        </div>
+        <div class="flex gap-1 shrink-0">
+          <button data-sec="${esc(kelolaSection)}" data-id="${esc(item.id)}" onclick="openItemForm(this.dataset.sec, this.dataset.id)"
+            class="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg hover:bg-blue-100">Ubah</button>
+          <button data-sec="${esc(kelolaSection)}" data-id="${esc(item.id)}" onclick="deleteItem(this.dataset.sec, this.dataset.id)"
+            class="text-xs bg-rose-50 text-rose-700 border border-rose-200 px-2 py-1 rounded-lg hover:bg-rose-100">Hapus</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+function selectKelolaSection(n) { kelolaSection = n; renderKelola(); }
+async function addSection() {
+  const name = prompt("Nama bagian baru:");
+  if (!name) return;
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  if (data.checklists[trimmed]) { alert("Bagian sudah ada."); return; }
+  const sortOrder = Object.keys(data.sectionMeta || {}).length + 1;
+  const res = await gasPost("saveSection", { name: trimmed, pin: "", sortOrder, isNew: true }, adminPw());
+  if (!res.ok) { toast("Gagal menambah bagian: " + (res.error || ""), "rose"); return; }
+  kelolaSection = trimmed;
+  await loadAll();
+  renderAll(); renderKelola();
+  toast("Bagian ditambahkan", "emerald");
+}
+async function renameSection(name) {
+  if (!name || !data.checklists[name]) return;
+  const newName = prompt("Nama baru untuk bagian ini:", name);
+  if (!newName) return;
+  const trimmed = newName.trim();
+  if (!trimmed || trimmed === name) return;
+  if (data.checklists[trimmed]) { alert("Nama itu sudah dipakai bagian lain."); return; }
+  const meta = (data.sectionMeta && data.sectionMeta[name]) || { sortOrder: 0 };
+  const res = await gasPost("saveSection", { name: trimmed, oldName: name, sortOrder: meta.sortOrder }, adminPw());
+  if (!res.ok) { toast("Gagal mengubah nama: " + (res.error || ""), "rose"); return; }
+
+  // Backend memindahkan semua item ke nama baru dalam satu lock.
+  if (currentSection === name) currentSection = trimmed;
+  if (kelolaSection === name) kelolaSection = trimmed;
+  sessionStorage.removeItem("unlock_" + name);
+  sessionStorage.removeItem("pin_" + name);
+  sessionStorage.removeItem("unlock_" + trimmed);
+  sessionStorage.removeItem("pin_" + trimmed);
+  await loadAll();
+  renderAll(); renderKelola();
+  toast("Nama bagian diubah", "emerald");
+}
+async function deleteSection(name) {
+  if (!name || !data.checklists[name]) return;
+  if (!confirm(`Hapus bagian "${name}" beserta semua item checklist-nya?\n\nRiwayat lama tidak terhapus.`)) return;
+  const res = await gasPost("deleteSection", { name }, adminPw());
+  if (!res.ok) { toast("Gagal menghapus bagian: " + (res.error || ""), "rose"); return; }
+  sessionStorage.removeItem("unlock_" + name);
+  sessionStorage.removeItem("pin_" + name);
+  await loadAll();
+  if (currentSection === name) currentSection = Object.keys(data.checklists)[0] || "";
+  if (kelolaSection === name) kelolaSection = Object.keys(data.checklists)[0] || null;
+  renderAll(); renderKelola();
+  toast("Bagian dihapus", "amber");
+}
+
+/* PIN SAVE */
+function saveAdminPin() {
+  toast("Ganti password admin lewat Apps Script → Project Settings → Script Properties (ADMIN_PASSWORD).", "amber");
+}
+async function saveSectionPin(sec, val) {
+  const v = String(val || "").trim();
+  const hadPin = !!data.pinSections[sec];
+  if (!v && !hadPin) { renderKelola(); return; } // tidak ada perubahan
+  if (!v && hadPin && !confirm(`Hapus PIN untuk bagian "${sec}"? Bagian ini akan bisa dibuka tanpa PIN.`)) {
+    renderKelola();
+    return;
+  }
+  if (v && v.length < 4) { alert("PIN bagian minimal 4 karakter. Dikosongkan = tidak diproteksi."); renderKelola(); return; }
+  const meta = (data.sectionMeta && data.sectionMeta[sec]) || { sortOrder: 0 };
+  const res = await gasPost("saveSection", { name: sec, pin: v, sortOrder: meta.sortOrder }, adminPw());
+  if (!res.ok) { toast("Gagal menyimpan PIN: " + (res.error || ""), "rose"); return; }
+  sessionStorage.removeItem("unlock_" + sec);
+  sessionStorage.removeItem("pin_" + sec);
+  await loadAll();
+  renderKelola(); renderSectionTabs();
+  toast(v ? `PIN ${sec} disimpan` : `PIN ${sec} dihapus`, "emerald");
+}
+
+/* ITEM FORM */
+function openItemForm(sec, id) {
+  if (!sec) sec = kelolaSection;
+  if (!sec) { alert("Pilih bagian dulu."); return; }
+  editingItemId = id || null;
+  const modal = document.getElementById("itemModal");
+  document.getElementById("modalTitle").textContent = id ? "Edit Item" : "Tambah Item";
+  if (id) {
+    const item = getItems(sec).find(i => i.id === id);
+    if (!item) return;
+    document.getElementById("modalLabel").value = item.label;
+    const f = (item.floors && item.floors.length) ? item.floors : [1];
+    document.getElementById("mL1").checked = f.includes(1);
+    document.getElementById("mL2").checked = f.includes(2);
+    document.getElementById("mL3").checked = f.includes(3);
+  } else {
+    document.getElementById("modalLabel").value = "";
+    document.getElementById("mL1").checked = false;
+    document.getElementById("mL2").checked = false;
+    document.getElementById("mL3").checked = false;
+  }
+  modal.dataset.section = sec;
+  modal.classList.remove("hidden");
+  setTimeout(() => document.getElementById("modalLabel").focus(), 100);
+}
+function closeItemForm() {
+  document.getElementById("itemModal").classList.add("hidden");
+  editingItemId = null;
+}
+async function saveItem() {
+  const modal = document.getElementById("itemModal");
+  const sec = modal.dataset.section;
+  const label = document.getElementById("modalLabel").value.trim();
+  if (!label) { alert("Label item wajib diisi."); return; }
+  const floors = [];
+  if (document.getElementById("mL1").checked) floors.push(1);
+  if (document.getElementById("mL2").checked) floors.push(2);
+  if (document.getElementById("mL3").checked) floors.push(3);
+
+  const payload = editingItemId
+    ? { id: editingItemId, section: sec, label, floors, isNew: false }
+    : { id: "it_" + Date.now() + "_" + Math.floor(Math.random() * 1000), section: sec, label, floors, isNew: true };
+
+  const res = await gasPost("saveItem", payload, adminPw());
+  if (!res.ok) { toast("Gagal menyimpan item: " + (res.error || ""), "rose"); return; }
+  const wasEditing = !!editingItemId; // ambil dulu sebelum closeItemForm() mereset ke null
+  closeItemForm();
+  await loadAll();
+  renderKelola(); renderAll();
+  toast(wasEditing ? "Item diperbarui" : "Item ditambahkan", "emerald");
+}
+async function deleteItem(sec, id) {
+  const item = getItems(sec).find(i => i.id === id);
+  if (!item) return;
+  if (!confirm(`Hapus item:\n"${item.label}"?\n\nRiwayat lama tidak terhapus.`)) return;
+  const res = await gasPost("deleteItem", { id }, adminPw());
+  if (!res.ok) { toast("Gagal menghapus item: " + (res.error || ""), "rose"); return; }
+  await loadAll();
+  renderKelola(); renderAll();
+  toast("Item dihapus", "amber");
+}
+document.getElementById("itemModal").addEventListener("click", e => {
+  if (e.target.id === "itemModal") closeItemForm();
+});
+
+/* ============ RIWAYAT ============ */
+function renderRiwayat() {
+  const filterDate = document.getElementById("filterDate").value;
+  let logs = [...data.logs].sort((a, b) => new Date(b.time) - new Date(a.time));
+  if (filterDate) logs = logs.filter(l => logDateStr(l.time) === filterDate);
+
+  const el = document.getElementById("riwayatList");
+  if (logs.length === 0) {
+    el.innerHTML = `<div class="text-xs text-slate-500 text-center py-8 bg-white rounded-xl border border-dashed border-slate-300">
+      Belum ada riwayat${filterDate ? ' di tanggal ini' : ''}.
+    </div>`;
+    return;
+  }
+
+  const groups = {};
+  logs.forEach(l => { const d = logDateStr(l.time); if (!d) return; (groups[d] = groups[d] || []).push(l); });
+
+  el.innerHTML = Object.entries(groups).map(([date, items]) => {
+    const dateLabel = fmtDateLabel(date);
+    const ngTotal = items.reduce((s, x) => s + (x.ngCount || 0), 0);
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-1.5 px-1">
+          <div class="text-xs font-bold text-slate-700">${dateLabel}</div>
+          <div class="text-[10px] text-slate-500">${items.length} cek · ${ngTotal} NG</div>
+        </div>
+        <div class="space-y-2">
+          ${items.map(l => {
+            const isOpen = expandedLogId === l.id;
+            return `
+              <div class="bg-white border border-slate-200 rounded-xl overflow-hidden transition ${isOpen ? 'ring-2 ring-blue-300 shadow-md' : ''}">
+                <button data-id="${l.id}" onclick="toggleLogDetail(this.dataset.id)" class="w-full text-left p-3 hover:bg-slate-50 transition">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-sm flex items-center gap-1.5 flex-wrap">
+                        ${esc(l.section)} <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">L${l.floor}</span>
+                        ${l.revisionCount ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">REV ${l.revisionCount}x</span>` : ''}
+                      </div>
+                      <div class="text-xs text-slate-500 truncate mt-0.5">
+                        <span class="font-medium text-slate-600">${esc(l.area || '-')}</span> · ${esc(l.officer)} · ${fmtTime(l.time, {hour:"2-digit",minute:"2-digit"})}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      ${l.hasIssue
+                        ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold whitespace-nowrap">TEMUAN</span>`
+                        : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold whitespace-nowrap">BERSIH</span>`}
+                      <span class="text-slate-400 text-xs transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}">v</span>
+                    </div>
+                  </div>
+                </button>
+                ${isOpen ? renderLogDetail(l) : ""}
+              </div>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }).join("");
+}
+function toggleLogDetail(id) {
+  expandedLogId = (expandedLogId === id) ? null : id;
+  renderRiwayat();
+  if (expandedLogId !== null) {
+    requestAnimationFrame(() => {
+      const btn = document.querySelector(`button[data-id="${id}"]`);
+      if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
+}
+function viewLogById(id) {
+  const log = data.logs.find(l => l.id === id);
+  if (!log) { toast("Log cek ulang tidak ditemukan.", "rose"); return; }
+  expandedLogId = id;
+  switchView("riwayat");
+  renderRiwayat();
+  requestAnimationFrame(() => {
+    const btn = [...document.querySelectorAll("button[data-id]")].find(b => b.dataset.id === id);
+    if (btn) btn.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+function renderLogDetail(l) {
+  const list = (l.items && l.items.length)
+    ? l.items.map(it => ({
+        id: it.id, label: it.label, val: it.val, photo: it.photo || null,
+        officer: it.officer || l.officer || "",
+        area: it.area || l.area || "",
+        note: it.note !== undefined && it.note !== null ? it.note : (l.note || ""),
+        time: it.time || l.time || "",
+        repairs: Array.isArray(it.repairs) ? it.repairs : [],
+        repairStatus: it.repairStatus || (it.val === "NG" ? "OPEN" : "")
+      }))
+    : Object.entries(l.values || {}).map(([k, v]) => {
+        const src = (data.checklists[l.section] || []).find(x => x.id === k);
+        return {
+          id: k, label: src ? src.label : k, val: v, photo: null,
+          officer: l.officer || "", area: l.area || "", note: l.note || "", time: l.time || "",
+          repairs: [], repairStatus: v === "NG" ? "OPEN" : ""
+        };
+      });
+
+  const okCount = list.filter(x => x.val === "OK").length;
+  const ngCount = list.filter(x => x.val === "NG").length;
+  const naCount = list.filter(x => x.val === "NA").length;
+  const metaKeys = list.map(x => `${x.officer || ""}|${x.time || ""}|${x.area || ""}`);
+  const showItemMeta = new Set(metaKeys).size > 1;
+  const showItemArea = new Set(list.map(x => x.area || "")).size > 1;
+  const officerSummary = [...new Set(list.map(x => x.officer).filter(Boolean))].join(", ") || l.officer || "-";
+
+  const map = {
+    OK: { bg: "bg-emerald-50", text: "text-emerald-800", badge: "bg-emerald-600" },
+    NG: { bg: "bg-rose-50",    text: "text-rose-800",    badge: "bg-rose-600" },
+    NA: { bg: "bg-slate-100",  text: "text-slate-600",   badge: "bg-slate-500" },
+  };
+  const detail = list.map(it => {
+    const s = map[it.val] || map.NA;
+    const repairs = it.repairs || [];
+    const isNg = it.val === "NG";
+    const isDone = isNg && it.repairStatus === "SELESAI";
+    const repairRows = repairs.map(r => `
+      <div class="bg-white/80 border border-slate-200 rounded-lg px-2 py-1.5">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="font-semibold text-slate-700">${esc(r.officer || "-")}</div>
+            <div class="text-[10px] text-slate-500">${fmtDateTime(r.time)}</div>
+          </div>
+          ${r.photo && r.photo.thumb ? `<img src="${esc(r.photo.thumb)}" data-url="${esc(r.photo.view || r.photo.thumb)}" onclick="openPhotoUrl(this.dataset.url)" onerror="this.style.display='none'" class="w-8 h-8 rounded object-cover border border-slate-300 cursor-pointer shrink-0" title="Lihat foto perbaikan">` : ""}
+        </div>
+        <div class="text-[11px] text-slate-700 mt-1 leading-snug">${esc(r.note || "")}</div>
+        ${r.logOkId ? `<button data-logok="${esc(r.logOkId)}" onclick="viewLogById(this.dataset.logok)" class="mt-1 text-[10px] font-semibold text-blue-700 underline">Lihat cek ulang</button>` : ""}
+      </div>`).join("");
+
+    return `
+      <div class="rounded ${s.bg} overflow-hidden">
+        <div class="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5">
+          <div class="flex-1 min-w-0 ${s.text} leading-snug">
+            <div>${esc(it.label)}</div>
+            ${showItemMeta ? `<div class="text-[10px] opacity-70">${showItemArea ? `${esc(it.area || "-")} · ` : ""}${esc(it.officer || "-")} · ${fmtTime(it.time, {hour:"2-digit", minute:"2-digit"})}</div>` : ""}
+            ${it.val === "NG" && it.note ? `<div class="text-[10px] italic opacity-80">"${esc(it.note)}"</div>` : ""}
+          </div>
+          ${it.photo && it.photo.thumb ? `<img src="${esc(it.photo.thumb)}" data-url="${esc(it.photo.view)}" onclick="openPhotoUrl(this.dataset.url)" onerror="this.style.display='none'" class="w-7 h-7 rounded object-cover border border-slate-300 cursor-pointer shrink-0" title="Lihat foto">` : ""}
+          ${isNg ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${isDone ? "bg-emerald-600" : "bg-amber-500"} shrink-0">${isDone ? "SELESAI" : "BELUM DIPERBAIKI"}</span>` : ""}
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${s.badge} shrink-0">${it.val}</span>
+        </div>
+        ${isNg ? `
+          <div class="px-2.5 pb-2 pt-1.5 border-t border-rose-200/70 space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-[10px] text-rose-700 font-semibold">${repairs.length ? `${repairs.length} catatan perbaikan` : "Belum ada catatan perbaikan"}</div>
+              <button data-log="${esc(l.id)}" data-item="${esc(it.id)}" onclick="openRepairForm(this.dataset.log, this.dataset.item)" class="text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 px-2 py-1 rounded-md shadow shrink-0">+ Catat Perbaikan</button>
+            </div>
+            ${repairRows}
+          </div>` : ""}
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="expand border-t border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+      <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-200">
+        <div>
+          <div class="text-[10px] font-bold text-slate-500 uppercase">Area Kerja</div>
+          <div class="text-sm font-semibold text-slate-800">${esc(l.area || '-')}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] font-bold text-slate-500 uppercase">Lokasi</div>
+          <div class="text-xs text-slate-700 font-semibold">${esc(l.section)} · L${l.floor}</div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5 text-[10px] font-bold">
+        <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">${okCount} OK</span>
+        <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700">${ngCount} NG</span>
+        ${naCount > 0 ? `<span class="px-2 py-0.5 rounded bg-slate-200 text-slate-600">${naCount} NA</span>` : ""}
+      </div>
+      <div class="space-y-1">${detail}</div>
+      ${l.note ? `
+        <div class="pt-2 border-t border-slate-200">
+          <div class="text-[10px] font-bold text-slate-500 uppercase mb-0.5">Catatan</div>
+          <div class="text-xs text-slate-700 italic">"${esc(l.note)}"</div>
+        </div>` : ""}
+      <div class="pt-2 border-t border-slate-200 text-[10px] text-slate-500 flex items-center justify-between gap-2">
+        <span>${showItemMeta ? "Petugas" : "Dicek oleh"} <b>${esc(officerSummary)}</b></span>
+        <span class="text-right">${fmtDateTime(l.time)}</span>
+      </div>
+      ${l.revisedAt ? `
+        <div class="text-[10px] text-blue-600 flex items-center justify-between">
+          <span>Direvisi ${l.revisionCount}x</span>
+          <span>${fmtDateTime(l.revisedAt)}</span>
+        </div>` : ""}
+      <button data-id="${l.id}" onclick="reviseLog(this.dataset.id)" class="mt-1 w-full text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg shadow">
+        Revisi Hasil Cek
+      </button>
+    </div>`;
+}
+function clearFilter() {
+  document.getElementById("filterDate").value = "";
+  expandedLogId = null;
+  renderRiwayat();
+}
+
+/* ============ REVISI (guard PIN) ============ */
+function doReviseLog(id) {
+  const log = data.logs.find(l => l.id === id);
+  if (!log) { toast("Data tidak ditemukan", "rose"); return; }
+  if (!data.checklists[log.section]) { toast("Bagian ini sudah dihapus dari checklist", "rose"); return; }
+  const key = dk(log.section, log.floor);
+  const existingDraft = data.drafts[key];
+  if (existingDraft && Object.keys(existingDraft.values || {}).length > 0) {
+    if (!confirm(`Draft ${log.section} L${log.floor} sedang ada. Timpa dengan data revisi?`)) return;
+  }
+  editingLogId = id;
+  currentSection = log.section;
+  currentFloor = log.floor;
+  const valuesMap = {};
+  const photosMap = {};
+  (log.items || []).forEach(it => {
+    valuesMap[it.id] = it.val;
+    if (it.photo && it.photo.thumb) {
+      photosMap[it.id] = {
+        thumb: it.photo.thumb,
+        view: it.photo.view,
+        fileId: it.photo.fileId || ""
+      };
+    }
+  });
+  data.drafts[key] = {
+    values: valuesMap,
+    photos: photosMap,
+    area: "",
+    note: "",
+    officer: "",
+  };
+  save();
+  expandedLogId = null;
+  doSwitchView('cek');
+  loadDraft(); renderAll();
+  toast("Mode revisi aktif", "blue");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function reviseLog(id) {
+  const log = data.logs.find(l => l.id === id);
+  if (!log) { toast("Data tidak ditemukan", "rose"); return; }
+  if (!data.checklists[log.section]) { toast("Bagian ini sudah dihapus", "rose"); return; }
+  if (data.pinSections[log.section] && !isSectionUnlocked(log.section)) {
+    askPin(`Bagian: ${log.section}`, "Untuk revisi, masukkan PIN bagian.", async (input) => {
+      if (await verifySectionPin(log.section, input)) {
+        doReviseLog(id);
+        return true;
+      }
+      return false;
+    }, { maxLength: 8, inputmode: "numeric" });
+    return;
+  }
+  doReviseLog(id);
+}
+function cancelRevision() {
+  if (!confirm("Batalkan revisi? Perubahan belum disimpan akan hilang.")) return;
+  const key = dk(currentSection, currentFloor);
+  editingLogId = null;
+  delete data.drafts[key];
+  currentValues = {}; currentPhotos = {};
+  document.getElementById("area").value = ""; document.getElementById("note").value = ""; document.getElementById("officer").value = "";
+  save(); renderAll(); toast("Revisi dibatalkan", "amber");
+}
+
+/* ============ REKAP ============ */
+function renderRekap() {
+  const from = document.getElementById("rekapFrom").value;
+  const to = document.getElementById("rekapTo").value;
+  let logs = [...data.logs];
+  if (from) logs = logs.filter(l => logDateStr(l.time) >= from);
+  if (to)   logs = logs.filter(l => logDateStr(l.time) <= to);
+
+  function ngStatus(log) {
+    const items = Array.isArray(log.items) ? log.items : [];
+    if (!items.length) return { open: log.hasIssue ? (Number(log.ngCount) || 0) : 0, closed: 0 };
+    let open = 0;
+    let closed = 0;
+    items.forEach(it => {
+      if (!it || it.val !== "NG") return;
+      if (it.repairStatus === "SELESAI") closed++;
+      else open++;
+    });
+    return { open: open, closed: closed };
+  }
+
+  const totalCek = logs.length;
+  const totalNg = logs.filter(l => l.hasIssue).length;
+  const pctBersih = totalCek ? Math.round((1 - totalNg / totalCek) * 100) : 0;
+  let totalOpen = 0;
+  let totalClosed = 0;
+  logs.forEach(l => {
+    const st = ngStatus(l);
+    totalOpen += st.open;
+    totalClosed += st.closed;
+  });
+
+  document.getElementById("rekapStats").innerHTML = `
+    <div class="bg-white rounded-xl p-3 border border-slate-200">
+      <div class="text-[11px] text-slate-500">Total Cek</div>
+      <div class="text-2xl font-bold">${totalCek}</div>
+    </div>
+    <div class="bg-white rounded-xl p-3 border border-slate-200">
+      <div class="text-[11px] text-slate-500">Bersih</div>
+      <div class="text-2xl font-bold text-emerald-600">${totalCek - totalNg}</div>
+    </div>
+    <div class="bg-white rounded-xl p-3 border border-slate-200">
+      <div class="text-[11px] text-slate-500">Cek dengan Temuan</div>
+      <div class="text-2xl font-bold text-rose-600">${totalNg}</div>
+      <div class="text-[9px] text-slate-400 mt-0.5">${totalClosed} NG sudah selesai</div>
+    </div>
+    <div class="bg-white rounded-xl p-3 border border-slate-200">
+      <div class="text-[11px] text-slate-500">NG Belum Selesai</div>
+      <div class="text-2xl font-bold text-amber-600">${totalOpen}</div>
+    </div>
+    <div class="bg-white rounded-xl p-3 border border-slate-200">
+      <div class="text-[11px] text-slate-500">% Bersih</div>
+      <div class="text-2xl font-bold text-blue-600">${pctBersih}%</div>
+    </div>`;
+
+  const perSection = {}, perFloor = {}, perArea = {}, perCombo = {};
+  logs.forEach(l => {
+    if (!perSection[l.section]) perSection[l.section] = { total: 0, ng: 0 };
+    perSection[l.section].total++; if (l.hasIssue) perSection[l.section].ng++;
+    if (!perFloor[l.floor]) perFloor[l.floor] = { total: 0, ng: 0 };
+    perFloor[l.floor].total++; if (l.hasIssue) perFloor[l.floor].ng++;
+    const areaKey = `${l.section} · ${(l.area || "-").trim()}`;
+    if (!perArea[areaKey]) perArea[areaKey] = { total: 0, ng: 0 };
+    perArea[areaKey].total++; if (l.hasIssue) perArea[areaKey].ng++;
+    const ck = dk(l.section, l.floor);
+    if (!perCombo[ck]) perCombo[ck] = { section: l.section, floor: l.floor, total: 0, ng: 0 };
+    perCombo[ck].total++; if (l.hasIssue) perCombo[ck].ng++;
+  });
+
+  const sk = Object.keys(perSection);
+  document.getElementById("rekapPerSection").innerHTML = sk.length === 0
+    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
+    : sk.map(k => {
+        const d = perSection[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
+        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
+          <div class="font-medium">${esc(k)}</div>
+          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
+        </div>`;
+      }).join("");
+
+  const fk = Object.keys(perFloor).sort((a, b) => a - b);
+  document.getElementById("rekapPerFloor").innerHTML = fk.length === 0
+    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
+    : fk.map(k => {
+        const d = perFloor[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
+        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
+          <div class="font-medium">Lantai ${k}</div>
+          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
+        </div>`;
+      }).join("");
+
+  const ak = Object.keys(perArea).sort();
+  document.getElementById("rekapPerArea").innerHTML = ak.length === 0
+    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
+    : ak.map(k => {
+        const d = perArea[k]; const pct = Math.round((1 - d.ng / d.total) * 100);
+        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
+          <div class="font-medium text-xs">${esc(k)}</div>
+          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
+        </div>`;
+      }).join("");
+
+  const ck = Object.values(perCombo).sort((a, b) => a.section.localeCompare(b.section) || a.floor - b.floor);
+  document.getElementById("rekapPerCombo").innerHTML = ck.length === 0
+    ? `<div class="text-xs text-slate-500 italic">Belum ada data.</div>`
+    : ck.map(d => {
+        const pct = Math.round((1 - d.ng / d.total) * 100);
+        return `<div class="flex items-center justify-between border-b border-slate-100 pb-1.5 text-sm">
+          <div class="font-medium">${esc(d.section)} <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">L${d.floor}</span></div>
+          <div class="text-xs text-slate-500">${d.total} cek · <span class="${d.ng ? 'text-rose-600 font-bold' : 'text-emerald-600'}">${d.ng} temuan</span> · ${pct}% bersih</div>
+        </div>`;
+      }).join("");
+
+  const ngLogs = logs.filter(l => l.hasIssue);
+  document.getElementById("rekapTemuan").innerHTML = ngLogs.length === 0
+    ? `<div class="text-xs text-slate-500 italic">Tidak ada temuan.</div>`
+    : ngLogs.sort((a, b) => new Date(b.time) - new Date(a.time)).map(l => {
+        const st = ngStatus(l);
+        return `
+        <div class="bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-xs">
+          <div class="flex justify-between gap-2">
+            <div class="font-semibold text-rose-800">${esc(l.section)} · L${l.floor}</div>
+            <div class="text-rose-600">${fmtDateTime(l.time)}</div>
+          </div>
+          <div class="text-rose-700 mt-0.5"><b>${esc(l.area || '-')}</b> · ${esc(l.officer)}</div>
+          <div class="text-rose-800 mt-1">• ${(l.ngItems || []).map(esc).join("<br>• ")}</div>
+          ${(st.open || st.closed) ? `
+            <div class="flex flex-wrap gap-1 mt-1.5 text-[10px] font-bold">
+              ${st.open ? `<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">${st.open} belum selesai</span>` : ""}
+              ${st.closed ? `<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">${st.closed} selesai</span>` : ""}
+            </div>` : ""}
+          ${l.note ? `<div class="italic mt-1 text-rose-700">"${esc(l.note)}"</div>` : ""}
+        </div>`;
+      }).join("");
+}
+
+/* ============ EXPORT CSV ============ */
+function exportCSV() {
+  if (data.logs.length === 0) { alert("Belum ada data."); return; }
+  const from = document.getElementById("rekapFrom").value;
+  const to = document.getElementById("rekapTo").value;
+  let logs = [...data.logs];
+  if (from) logs = logs.filter(l => logDateStr(l.time) >= from);
+  if (to)   logs = logs.filter(l => logDateStr(l.time) <= to);
+
+  const rows = [["Tanggal","Jam","Bagian","Lantai","Area Kerja","Petugas","Status","Jumlah NG","Item NG","Catatan","Revisi","Waktu Revisi"]];
+  logs.forEach(l => {
+    rows.push([
+      logDateStr(l.time), fmtTime(l.time),
+      l.section, l.floor, l.area || "", l.officer,
+      l.hasIssue ? "TEMUAN" : "BERSIH",
+      l.ngCount || 0,
+      (l.ngItems || []).join(" | "),
+      l.note || "",
+      l.revisionCount || 0,
+      l.revisedAt ? fmtDateTime(l.revisedAt) : "",
+    ]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `rekap-cek-area-${todayStr()}.csv`;
+  a.click();
+}
+
+/* ============ RENDER ALL ============ */
+function renderAll() {
+  renderSectionTabs();
+  renderFloorTabs();
+  renderPending();
+  renderSide();
+  renderSummary();
+  renderItems();
+  renderRevisionBanner();
+  populateAreaOptions();
+}
+
+/* ============ INIT & POLLING ============ */
+document.getElementById("filterDate").addEventListener("change", () => { expandedLogId = null; renderRiwayat(); });
+document.getElementById("rekapFrom").value = todayStr(new Date(Date.now() - 30*86400000));
+document.getElementById("rekapTo").value = todayStr();
+
+let lastMetaSig = "";
+let lastFullRefresh = 0;
+let metaSupported = true;
+const META_POLL_MS = 60 * 1000;
+const FULL_REFRESH_MS = 5 * 60 * 1000;
+
+function metaSignature(meta) {
+  if (!meta) return "";
+  return [
+    meta.logCount, meta.lastLogTime, meta.sectionCount, meta.itemCount,
+    meta.repairCount, meta.lastRepairTime, meta.sectionsStamp, meta.itemsStamp
+  ].join("|");
+}
+
+async function refreshFromServer(opts = {}) {
+  const ok = await loadAll(opts);
+  if (!ok) return false;
+
+  renderPending();
+  renderSide();
+  if (!document.getElementById("view-cek").classList.contains("hidden")) {
+    renderAll();
+  }
+  if (!document.getElementById("view-riwayat").classList.contains("hidden")) {
+    renderRiwayat();
+  }
+  if (!document.getElementById("view-rekap").classList.contains("hidden")) {
+    renderRekap();
+  }
+  if (!document.getElementById("view-laporan").classList.contains("hidden")) {
+    renderLaporan();
+  }
+  lastFullRefresh = Date.now();
+  return true;
+}
+
+async function primeMeta() {
+  try {
+    const json = await gasGetMeta();
+    if (json && json.ok && json.meta) {
+      lastMetaSig = metaSignature(json.meta);
+    } else {
+      metaSupported = false;
+    }
+  } catch (err) {
+    // diamkan; polling akan mencoba lagi
+  }
+}
+
+async function pollMeta() {
+  if (document.hidden) return;
+
+  // Backend lama tidak punya endpoint meta: cukup full refresh tiap 5 menit.
+  if (!metaSupported) {
+    if (Date.now() - lastFullRefresh > FULL_REFRESH_MS) {
+      await refreshFromServer({ silent: true });
+    }
+    return;
+  }
+
+  try {
+    const json = await gasGetMeta();
+    if (!json || !json.ok) return;
+
+    if (!json.meta) {
+      metaSupported = false;
+      if (Date.now() - lastFullRefresh > FULL_REFRESH_MS) {
+        await refreshFromServer({ silent: true });
+      }
+      return;
+    }
+
+    const sig = metaSignature(json.meta);
+    if (sig !== lastMetaSig) {
+      lastMetaSig = sig;
+      await refreshFromServer({ silent: true });
+    } else if (Date.now() - lastFullRefresh > FULL_REFRESH_MS) {
+      await refreshFromServer({ silent: true });
+    }
+  } catch (err) {
+    // jangan spam toast saat polling
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) pollMeta();
+});
+
+(async function init() {
+  loadLocalDrafts();
+  await loadAll();
+  lastFullRefresh = Date.now();
+
+  if (sections().length && !data.checklists[currentSection]) currentSection = sections()[0];
+  const ff = floorsForSection(currentSection);
+  if (!ff.includes(currentFloor)) currentFloor = ff[0] || 1;
+  loadDraft();
+  renderAll();
+
+  if (!sessionStorage.getItem("welcomed")) {
+    sessionStorage.setItem("welcomed", "1");
+    setTimeout(() => {
+      const pending = getPendingToday();
+      if (pending.length > 0) toast(`${pending.length} cek belum selesai hari ini`, "amber");
+    }, 800);
+  }
+
+  await primeMeta();
+  setInterval(pollMeta, META_POLL_MS);
+})();
+</script>
+</body>
+</html>

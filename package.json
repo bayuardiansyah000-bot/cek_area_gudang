@@ -1,0 +1,12 @@
+{
+  "name": "cekarea-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend checklist cek area — deploy statis ke Vercel",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
