@@ -931,15 +931,39 @@ function renderSide() {
     const recent = [...data.logs]
       .filter(l => l && l.time && logDateStr(l.time) === today)
       .sort((a, b) => new Date(b.time) - new Date(a.time))
-      .slice(0, 3);
+      .slice(0, 5);
+    const findingsHtml = l => {
+      const ngItems = Array.isArray(l.items) && l.items.length
+        ? l.items.filter(it => it && it.val === "NG")
+        : (l.ngItems || []).map(label => ({ label, note: l.note }));
+      if (!ngItems.length) return "";
+      return `
+        <div class="mt-1.5 ml-3.5 space-y-1.5">
+          ${ngItems.map(it => {
+            const repaired = it.repairStatus === "SELESAI";
+            return `
+              <div class="flex gap-2 rounded-lg bg-rose-50 border border-rose-200 p-2">
+                ${it.photo && it.photo.thumb ? `<img src="${esc(it.photo.thumb)}" data-url="${esc(it.photo.view || it.photo.thumb)}" onclick="openPhotoUrl(this.dataset.url)" onerror="this.style.display='none'" alt="Foto temuan" class="w-10 h-10 rounded object-cover border border-rose-300 cursor-pointer shrink-0">` : ""}
+                <div class="min-w-0 flex-1">
+                  <div class="font-semibold text-rose-800 leading-snug">${esc(it.label || "-")}</div>
+                  ${it.note ? `<div class="italic text-rose-700 leading-snug mt-0.5">"${esc(it.note)}"</div>` : ""}
+                  <span class="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${repaired ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"}">${repaired ? "Sudah diperbaiki" : "Belum diperbaiki"}</span>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>`;
+    };
     activity.innerHTML = `
       <div class="text-[11px] uppercase tracking-widest text-slate-500 font-bold">Aktivitas</div>
-      <div class="mt-2 space-y-2 text-[11px]">
+      <div class="mt-2 space-y-2.5 text-xs">
         ${recent.length
           ? recent.map(l => `
-              <div class="flex gap-2">
-                <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${l.hasIssue ? "bg-rose-400" : "bg-emerald-400"}"></span>
-                <span>${esc(l.officer || "-")} · ${esc(l.section || "-")} L${Number(l.floor) || "-"} · ${fmtTime(l.time)}</span>
+              <div>
+                <button data-id="${esc(l.id)}" onclick="viewLogById(this.dataset.id)" class="w-full flex gap-2 text-left hover:underline">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${l.hasIssue ? "bg-rose-500" : "bg-emerald-500"}"></span>
+                  <span>${esc(l.officer || "-")} · ${esc(l.section || "-")} L${Number(l.floor) || "-"} · ${fmtTime(l.time, { hour: "2-digit", minute: "2-digit" })}${l.hasIssue ? ` · <b class="text-rose-700">${Number(l.ngCount) || 0} NG</b>` : ""}</span>
+                </button>
+                ${findingsHtml(l)}
               </div>`).join("")
           : `<div class="text-slate-500">Belum ada aktivitas hari ini.</div>`}
       </div>`;
@@ -2489,7 +2513,7 @@ function toggleLogDetail(id) {
   renderRiwayat();
   if (expandedLogId !== null) {
     requestAnimationFrame(() => {
-      const btn = document.querySelector(`button[data-id="${id}"]`);
+      const btn = [...document.querySelectorAll("#riwayatList button[data-id]")].find(b => b.dataset.id === id);
       if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   }
@@ -2502,7 +2526,7 @@ function viewLogById(id) {
   switchView("riwayat");
   renderRiwayat();
   requestAnimationFrame(() => {
-    const btn = [...document.querySelectorAll("button[data-id]")].find(b => b.dataset.id === id);
+    const btn = [...document.querySelectorAll("#riwayatList button[data-id]")].find(b => b.dataset.id === id);
     if (btn) btn.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 }
