@@ -257,15 +257,25 @@
     <!-- KEAMANAN -->
     <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
       <h3 class="font-bold text-sm">Pengaturan Keamanan</h3>
-      <div>
-        <label class="text-xs font-semibold text-slate-600">Password Admin (untuk buka tab Kelola)</label>
-        <div class="flex gap-2 mt-1">
-          <input id="adminPinInput" type="password" inputmode="text" maxlength="64"
-            class="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2" placeholder="Password admin Supabase" />
-          <button onclick="saveAdminPin()" class="text-xs bg-blue-600 text-white px-4 rounded-lg font-semibold hover:bg-blue-700">Simpan</button>
+      <form onsubmit="event.preventDefault(); saveAdminPassword()" class="space-y-2">
+        <div class="text-xs font-semibold text-slate-600">Ganti Password Admin</div>
+        <div class="grid sm:grid-cols-2 gap-2">
+          <label class="block">
+            <span class="text-[11px] text-slate-500">Password baru</span>
+            <input id="adminPwNew" type="password" autocomplete="new-password" minlength="6" maxlength="64" required
+              class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 h-10 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </label>
+          <label class="block">
+            <span class="text-[11px] text-slate-500">Ulangi password baru</span>
+            <input id="adminPwConfirm" type="password" autocomplete="new-password" minlength="6" maxlength="64" required
+              class="mt-1 w-full text-sm border border-slate-300 rounded-lg px-3 h-10 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </label>
         </div>
-        <p class="text-[10px] text-slate-500 mt-1">Password admin diatur sebagai secret <b>ADMIN_PASSWORD</b> di <b>Supabase → Edge Functions → Secrets</b>, bukan di sini dan bukan PIN bagian.</p>
-      </div>
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[11px] text-slate-500">Minimal 6 karakter. Berlaku untuk semua perangkat.</p>
+          <button id="btnAdminPw" type="submit" class="text-sm bg-blue-600 text-white px-4 h-10 rounded-lg font-semibold hover:bg-blue-700 shrink-0">Simpan Password</button>
+        </div>
+      </form>
       <div>
         <label class="text-xs font-semibold text-slate-600">PIN per Bagian (opsional)</label>
         <p class="text-[10px] text-slate-500 mb-2">Kosongkan = tidak diproteksi. Isi = petugas harus masukkan PIN untuk buka bagian ini di tab Cek.</p>
@@ -274,6 +284,15 @@
       <button onclick="lockAll()" class="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg font-semibold">
         Lock Sekarang (keluar dari admin & kunci semua bagian)
       </button>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-rose-300 p-4 space-y-2">
+      <h3 class="font-bold text-sm text-rose-700">Clean Data</h3>
+      <p class="text-xs text-slate-600">Hapus <b>semua riwayat cek</b>, catatan perbaikan, dan foto. Bagian, item checklist, dan PIN tetap ada. Tindakan ini <b>tidak bisa dibatalkan</b>, jadi Export CSV di tab Rekap dulu bila perlu arsip.</p>
+      <div class="flex items-center justify-between gap-2">
+        <span id="cleanDataInfo" class="text-[11px] text-slate-500"></span>
+        <button id="btnCleanData" onclick="cleanAllLogs()" class="text-sm bg-rose-600 hover:bg-rose-700 text-white px-4 h-10 rounded-lg font-semibold shrink-0">Hapus Semua Riwayat</button>
+      </div>
     </section>
 
     <section>
@@ -828,9 +847,10 @@ function todayFilledIds(sec, fl) {
 function getDoneToday() {
   const set = new Set();
   getAllCombos().forEach(c => {
-    const total = floorItems(c.section, c.floor).length;
-    if (!total) return;
-    if (todayFilledIds(c.section, c.floor).size >= total) set.add(dk(c.section, c.floor));
+    const items = floorItems(c.section, c.floor);
+    if (!items.length) return;
+    const filled = todayFilledIds(c.section, c.floor);
+    if (items.every(it => filled.has(String(it.id)))) set.add(dk(c.section, c.floor));
   });
   return set;
 }
@@ -2173,10 +2193,7 @@ function toast(msg, color = "emerald") {
 
 /* ============ KELOLA ============ */
 function renderKelola() {
-  const adminPinInput = document.getElementById("adminPinInput");
-  adminPinInput.value = "";
-  adminPinInput.placeholder = "Diatur di Apps Script";
-  adminPinInput.disabled = true;
+  document.getElementById("cleanDataInfo").textContent = `${data.logs.length} riwayat tersimpan`;
 
   const el = document.getElementById("kelolaSections");
   const names = sections();
@@ -2306,8 +2323,48 @@ async function deleteSection(name) {
 }
 
 /* PIN SAVE */
-function saveAdminPin() {
-  toast("Ganti password admin lewat Supabase → Edge Functions → Secrets → ADMIN_PASSWORD.", "amber");
+async function saveAdminPassword() {
+  const newEl = document.getElementById("adminPwNew");
+  const confirmEl = document.getElementById("adminPwConfirm");
+  const newPassword = newEl.value;
+  if (newPassword.length < 6) { toast("Password minimal 6 karakter.", "rose"); newEl.focus(); return; }
+  if (newPassword !== confirmEl.value) { toast("Ulangi password tidak sama.", "rose"); confirmEl.focus(); return; }
+  const btn = document.getElementById("btnAdminPw");
+  btn.disabled = true;
+  try {
+    const res = await gasPost("changeAdminPassword", { newPassword }, adminPw());
+    if (!res.ok) { toast("Gagal mengganti password: " + (res.error || ""), "rose"); return; }
+    sessionStorage.setItem("adminPw", newPassword);
+    newEl.value = "";
+    confirmEl.value = "";
+    toast("Password admin diganti.", "emerald");
+  } catch (err) {
+    toast("Perhatian: gagal terhubung ke server.", "rose");
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function cleanAllLogs() {
+  const total = data.logs.length;
+  if (!total) { toast("Riwayat sudah kosong.", "amber"); return; }
+  const typed = prompt(`Hapus ${total} riwayat cek beserta catatan perbaikan dan fotonya?\n\nKetik HAPUS untuk melanjutkan.`);
+  if (typed === null) return;
+  if (typed.trim() !== "HAPUS") { toast("Dibatalkan: konfirmasi tidak sesuai.", "amber"); return; }
+  const btn = document.getElementById("btnCleanData");
+  btn.disabled = true;
+  try {
+    const res = await gasPost("purgeLogs", { confirm: "HAPUS" }, adminPw());
+    if (!res.ok) { toast("Gagal menghapus riwayat: " + (res.error || ""), "rose"); return; }
+    expandedLogId = null;
+    editingLogId = null;
+    await loadAll();
+    renderAll(); renderKelola();
+    toast("Semua riwayat dihapus.", "emerald");
+  } catch (err) {
+    toast("Perhatian: gagal terhubung ke server.", "rose");
+  } finally {
+    btn.disabled = false;
+  }
 }
 async function saveSectionPin(sec, val) {
   const v = String(val || "").trim();
