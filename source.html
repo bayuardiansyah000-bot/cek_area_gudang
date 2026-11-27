@@ -323,7 +323,6 @@
 
   <!-- ============ SIDEBAR KANAN ============ -->
   <aside class="order-3 lg:order-none space-y-4">
-    <div id="sideSummary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"></div>
     <div id="sideActivity" class="bg-white text-slate-800 rounded-2xl p-4 border border-slate-200"></div>
   </aside>
 </main>
@@ -906,29 +905,6 @@ function renderSide() {
         <div class="h-full bg-brand rounded-full" style="width:${pct}%"></div>
       </div>
       <div class="text-[11px] text-slate-300 mt-2">${sisa === 0 ? "Semua bagian selesai hari ini" : `${sisa} lantai belum dicek`}</div>`;
-  }
-
-  const summary = document.getElementById("sideSummary");
-  if (summary) {
-    summary.innerHTML = `
-      <div class="flex items-center gap-2 mb-3">
-        <span class="pulse-dot w-2 h-2 rounded-full bg-emerald-500"></span>
-        <h2 class="text-xs font-bold uppercase tracking-wide text-slate-600">Ringkasan Hari Ini</h2>
-      </div>
-      <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="rounded-xl bg-slate-50 py-2">
-          <div class="text-[9px] text-slate-400 font-bold">TOTAL</div>
-          <div class="text-lg font-bold text-slate-800">${total}</div>
-        </div>
-        <div class="rounded-xl bg-emerald-50 py-2">
-          <div class="text-[9px] text-emerald-600 font-bold">SELESAI</div>
-          <div class="text-lg font-bold text-emerald-700">${doneCount}</div>
-        </div>
-        <div class="rounded-xl bg-amber-50 py-2">
-          <div class="text-[9px] text-amber-600 font-bold">SISA</div>
-          <div class="text-lg font-bold text-amber-700">${sisa}</div>
-        </div>
-      </div>`;
   }
 
   const activity = document.getElementById("sideActivity");
