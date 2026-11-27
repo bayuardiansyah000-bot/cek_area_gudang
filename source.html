@@ -234,7 +234,7 @@
     <div id="rekapSummary"></div>
     <section class="bg-white rounded-2xl border border-slate-200 p-4">
       <h3 class="font-bold text-sm">Per Bagian & Lantai</h3>
-      <p class="text-[11px] text-slate-500 mt-0.5 mb-3">1 cek = 1 kali checklist diisi untuk satu bagian dan satu lantai. "Ada temuan" = minimal satu item NG.</p>
+      <p id="rekapTableNote" class="text-[11px] text-slate-500 mt-0.5 mb-3"></p>
       <div id="rekapTable" class="overflow-x-auto"></div>
     </section>
     <section class="bg-white rounded-2xl border border-slate-200 p-4">
@@ -2746,45 +2746,72 @@ function logItems(l) {
   if (Array.isArray(l.items) && l.items.length) return l.items.filter(Boolean);
   return (l.ngItems || []).map(label => ({ label, val: "NG", note: l.note, repairs: [] }));
 }
-function rekapStats(logs) {
-  const findings = [];
-  const bySection = new Map();
-  logs.forEach(l => {
-    const ngItems = logItems(l).filter(it => it.val === "NG");
-    ngItems.forEach(it => {
-      const repairs = Array.isArray(it.repairs) ? it.repairs : [];
-      findings.push({ log: l, item: it, repaired: it.repairStatus === "SELESAI", lastRepair: repairs[repairs.length - 1] || null });
-    });
-    if (!bySection.has(l.section)) bySection.set(l.section, new Map());
-    const floors = bySection.get(l.section);
-    const floor = Number(l.floor);
-    if (!floors.has(floor)) floors.set(floor, { floor, total: 0, clean: 0, issue: 0, ng: 0 });
-    const row = floors.get(floor);
-    row.total++;
-    if (l.hasIssue) row.issue++; else row.clean++;
-    row.ng += ngItems.length;
-  });
-  const order = name => (data.sectionMeta[name] ? data.sectionMeta[name].sortOrder : 9999);
-  const sectionRows = [...bySection.entries()]
-    .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
-    .map(([section, floors]) => {
-      const floorRows = [...floors.values()].sort((a, b) => a.floor - b.floor);
-      const sum = key => floorRows.reduce((n, r) => n + r[key], 0);
-      return { section, floors: floorRows, total: sum("total"), clean: sum("clean"), issue: sum("issue"), ng: sum("ng") };
-    });
-  const total = logs.length;
-  const withIssue = logs.filter(l => l.hasIssue).length;
-  const clean = total - withIssue;
-  return {
-    total, clean, withIssue,
-    pct: total ? Math.round(clean / total * 100) : 0,
-    findings,
-    open: findings.filter(f => !f.repaired).length,
-    sections: sectionRows,
-  };
+function countDays(from, to) {
+  const today = todayStr();
+  const end = to && to < today ? to : today;
+  const start = from || data.logs.map(l => logDateStr(l.time)).filter(Boolean).sort()[0] || end;
+  if (start > end) return 0;
+  return Math.round((Date.parse(end + "T00:00:00Z") - Date.parse(start + "T00:00:00Z")) / 86400000) + 1;
 }
 function pctOf(part, total) {
-  return total ? Math.round(part / total * 100) : 0;
+  return total ? Math.min(100, Math.round(part / total * 100)) : 0;
+}
+function rekapStats(from, to) {
+  const logs = logsInRange(from, to).sort((a, b) => new Date(a.time) - new Date(b.time));
+  const days = countDays(from, to);
+  const rows = new Map();
+  const rowFor = (section, floor) => {
+    const key = dk(section, floor);
+    if (!rows.has(key)) rows.set(key, { section, floor, target: 0, checked: 0, ok: 0, ng: 0 });
+    return rows.get(key);
+  };
+  getAllCombos().forEach(c => { rowFor(c.section, c.floor).target = floorItems(c.section, c.floor).length * days; });
+
+  const seen = new Set();
+  const findings = [];
+  logs.forEach(l => {
+    const row = rowFor(l.section, Number(l.floor));
+    const day = logDateStr(l.time);
+    logItems(l).forEach(it => {
+      if (!it.val) return;
+      const key = `${day}|${l.section}|${l.floor}|${it.id || it.label}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      row.checked++;
+      if (it.val === "NG") {
+        row.ng++;
+        const repairs = Array.isArray(it.repairs) ? it.repairs : [];
+        findings.push({ log: l, item: it, repaired: it.repairStatus === "SELESAI", lastRepair: repairs[repairs.length - 1] || null });
+      } else {
+        row.ok++;
+      }
+    });
+  });
+
+  const order = name => (data.sectionMeta[name] ? data.sectionMeta[name].sortOrder : 9999);
+  const bySection = new Map();
+  [...rows.values()].forEach(r => {
+    r.done = r.target ? Math.min(r.checked, r.target) : r.checked;
+    if (!bySection.has(r.section)) bySection.set(r.section, []);
+    bySection.get(r.section).push(r);
+  });
+  const sum = (list, key) => list.reduce((n, r) => n + r[key], 0);
+  const sections = [...bySection.entries()]
+    .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
+    .map(([section, floors]) => {
+      floors.sort((a, b) => a.floor - b.floor);
+      return { section, floors, target: sum(floors, "target"), done: sum(floors, "done"), ok: sum(floors, "ok"), ng: sum(floors, "ng") };
+    });
+  const all = [...rows.values()];
+  return {
+    logs, days, sections, findings,
+    target: sum(all, "target"), done: sum(all, "done"), ok: sum(all, "ok"), ng: sum(all, "ng"),
+    open: findings.filter(f => !f.repaired).length,
+  };
+}
+function progressTone(done, target) {
+  if (target && done >= target) return "done";
+  return done > 0 ? "partial" : "none";
 }
 
 function renderRekap() {
@@ -2795,8 +2822,10 @@ function renderRekap() {
     return `<button onclick="setRekapPreset('${p.key}')" class="shrink-0 text-sm h-9 px-3 rounded-lg border font-semibold ${active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"}">${p.label}</button>`;
   }).join("");
 
-  const stats = rekapStats(logsInRange(from, to));
-  const tile = (label, value, tone, sub) => {
+  const stats = rekapStats(from, to);
+  const pct = pctOf(stats.done, stats.target);
+  const remaining = Math.max(0, stats.target - stats.done);
+  const tile = (label, value, tone, sub, extra = "") => {
     const tones = {
       slate: "bg-slate-50 text-slate-900",
       emerald: "bg-emerald-50 text-emerald-800",
@@ -2804,56 +2833,61 @@ function renderRekap() {
       amber: "bg-amber-50 text-amber-800",
     };
     return `
-      <div class="rounded-xl px-3 py-2.5 ${tones[tone]}">
+      <div class="rounded-xl px-3 py-2.5 ${tones[tone]} ${extra}">
         <div class="text-[11px] font-semibold opacity-80">${label}</div>
         <div class="text-2xl font-bold leading-tight tabular-nums">${value}</div>
         ${sub ? `<div class="text-[11px] opacity-75">${sub}</div>` : ""}
       </div>`;
   };
-  const headline = stats.total
-    ? `Ada <b>${stats.total} cek</b>: <span class="text-emerald-700">${stats.clean} bersih</span>, <span class="text-rose-700">${stats.withIssue} ada temuan</span>.`
-    : "Belum ada cek di periode ini.";
   const followUp = stats.open
     ? `<p class="text-sm text-amber-800 mt-1">${stats.open} item NG belum diperbaiki. Lihat daftar temuan di bawah.</p>`
     : stats.findings.length ? `<p class="text-sm text-emerald-700 mt-1">Semua temuan sudah diperbaiki.</p>` : "";
   document.getElementById("rekapSummary").innerHTML = `
     <div class="bg-white rounded-2xl border border-slate-200 p-4">
       <div class="text-[11px] uppercase tracking-widest font-bold text-slate-500">Periode ${esc(rekapPeriodLabel(from, to))}</div>
-      <p class="text-base text-slate-800 mt-1">${headline}</p>
+      <p class="text-base text-slate-800 mt-1"><b>${stats.done} dari ${stats.target} item</b> sudah dicek (${pct}%)${remaining ? `, <b class="text-rose-700">${remaining} belum dicek</b>` : ""}.</p>
       ${followUp}
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-        ${tile("Total cek", stats.total, "slate")}
-        ${tile("Bersih", stats.clean, "emerald", `${stats.pct}% dari total cek`)}
-        ${tile("Ada temuan", stats.withIssue, "rose", `${stats.findings.length} item NG`)}
+      <div class="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden"><div class="h-full ${pct === 100 ? "bg-emerald-500" : "bg-amber-500"}" style="width:${pct}%"></div></div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3">
+        ${tile("Item dicek", `${stats.done}/${stats.target}`, "slate", `${pct}% selesai`, "col-span-2 sm:col-span-1")}
+        ${tile("Belum dicek", remaining, remaining ? "rose" : "emerald", remaining ? "item tersisa" : "semua sudah dicek")}
+        ${tile("OK", stats.ok, "emerald")}
+        ${tile("NG (temuan)", stats.ng, stats.ng ? "rose" : "slate")}
         ${tile("NG belum diperbaiki", stats.open, stats.open ? "amber" : "slate")}
       </div>
     </div>`;
 
-  const pctCell = (part, total) => {
-    const pct = pctOf(part, total);
+  document.getElementById("rekapTableNote").textContent = stats.days > 1
+    ? `Angka x/y = item yang sudah diisi OK/NG dari target. Target = jumlah item × ${stats.days} hari.`
+    : "Angka x/y = item yang sudah diisi OK/NG dari jumlah item yang wajib dicek.";
+  const toneClass = { done: "text-emerald-700", partial: "text-amber-700", none: "text-rose-700" };
+  const barClass = { done: "bg-emerald-500", partial: "bg-amber-500", none: "bg-slate-200" };
+  const rowHtml = (label, r, isSub) => {
+    const tone = progressTone(r.done, r.target);
+    const rowPct = pctOf(r.done, r.target);
     return `
-      <div class="flex items-center gap-2 justify-end">
-        <div class="hidden sm:block w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${pct === 100 ? "bg-emerald-500" : "bg-amber-500"}" style="width:${pct}%"></div></div>
-        <span class="tabular-nums font-semibold ${pct === 100 ? "text-emerald-700" : "text-amber-700"}">${pct}%</span>
-      </div>`;
+      <tr class="${isSub ? "text-slate-600" : "font-semibold text-slate-900 border-t border-slate-200"}">
+        <td class="py-2 pr-2 ${isSub ? "pl-4" : ""}">${label}</td>
+        <td class="py-2 px-2 text-right tabular-nums whitespace-nowrap ${toneClass[tone]}">${r.done}/${r.target || "-"}</td>
+        <td class="py-2 px-2 text-right tabular-nums text-emerald-700">${r.ok}</td>
+        <td class="py-2 px-2 text-right tabular-nums ${r.ng ? "text-rose-700" : ""}">${r.ng}</td>
+        <td class="py-2 pl-2">
+          <div class="flex items-center gap-2 justify-end">
+            <div class="hidden sm:block w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${barClass[tone]}" style="width:${rowPct}%"></div></div>
+            <span class="tabular-nums font-semibold ${toneClass[tone]}">${rowPct}%</span>
+          </div>
+        </td>
+      </tr>`;
   };
-  const rowHtml = (label, r, isSub) => `
-    <tr class="${isSub ? "text-slate-600" : "font-semibold text-slate-900 border-t border-slate-200"}">
-      <td class="py-2 pr-2 ${isSub ? "pl-4" : ""}">${label}</td>
-      <td class="py-2 px-2 text-right tabular-nums">${r.total}</td>
-      <td class="py-2 px-2 text-right tabular-nums text-emerald-700">${r.clean}</td>
-      <td class="py-2 px-2 text-right tabular-nums ${r.issue ? "text-rose-700" : ""}">${r.issue}</td>
-      <td class="py-2 pl-2">${pctCell(r.clean, r.total)}</td>
-    </tr>`;
   document.getElementById("rekapTable").innerHTML = stats.sections.length
     ? `<table class="w-full text-xs sm:text-sm">
         <thead>
           <tr class="text-[11px] uppercase tracking-wide text-slate-500">
             <th class="text-left font-semibold pb-2 pr-2">Bagian</th>
-            <th class="text-right font-semibold pb-2 px-2">Cek</th>
-            <th class="text-right font-semibold pb-2 px-2">Bersih</th>
-            <th class="text-right font-semibold pb-2 px-2">Ada temuan</th>
-            <th class="text-right font-semibold pb-2 pl-2">% Bersih</th>
+            <th class="text-right font-semibold pb-2 px-2">Dicek</th>
+            <th class="text-right font-semibold pb-2 px-2">OK</th>
+            <th class="text-right font-semibold pb-2 px-2">NG</th>
+            <th class="text-right font-semibold pb-2 pl-2">Progres</th>
           </tr>
         </thead>
         <tbody>
@@ -2863,7 +2897,7 @@ function renderRekap() {
           ).join("")}
         </tbody>
       </table>`
-    : `<div class="text-xs text-slate-500">Belum ada data di periode ini.</div>`;
+    : `<div class="text-xs text-slate-500">Belum ada checklist dikonfigurasi.</div>`;
 
   const findings = [...stats.findings].sort((a, b) =>
     (a.repaired - b.repaired) || (new Date(b.item.time || b.log.time) - new Date(a.item.time || a.log.time)));
@@ -2889,105 +2923,205 @@ function renderRekap() {
     : `<div class="text-xs text-slate-500">Tidak ada temuan di periode ini.</div>`;
 }
 
-const XLSX_URL = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.mini.min.js";
-let xlsxPromise = null;
-function loadXlsx() {
-  if (window.XLSX) return Promise.resolve(window.XLSX);
-  if (!xlsxPromise) {
-    xlsxPromise = new Promise((resolve, reject) => {
+const EXCELJS_URL = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+let excelJsPromise = null;
+function loadExcelJs() {
+  if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if (!excelJsPromise) {
+    excelJsPromise = new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = XLSX_URL;
-      script.onload = () => resolve(window.XLSX);
-      script.onerror = () => { xlsxPromise = null; reject(new Error("Library Excel gagal dimuat. Periksa koneksi internet.")); };
+      script.src = EXCELJS_URL;
+      script.onload = () => resolve(window.ExcelJS);
+      script.onerror = () => { excelJsPromise = null; reject(new Error("Library Excel gagal dimuat. Periksa koneksi internet.")); };
       document.head.appendChild(script);
     });
   }
-  return xlsxPromise;
+  return excelJsPromise;
+}
+const XL = {
+  ink: "FF1C1C1A", brand: "FFF52800", white: "FFFFFFFF", border: "FFD6D6D4", muted: "FF55554F",
+  okFill: "FFDCFCE7", okText: "FF047857", ngFill: "FFFFE4E6", ngText: "FFBE123C",
+  warnFill: "FFFEF3C7", warnText: "FF92400E", zebra: "FFF6F6F5",
+};
+const xlFill = argb => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+const xlBorder = { top: { style: "thin", color: { argb: XL.border } }, left: { style: "thin", color: { argb: XL.border } }, bottom: { style: "thin", color: { argb: XL.border } }, right: { style: "thin", color: { argb: XL.border } } };
+function xlTone(tone) {
+  return {
+    done: { fill: XL.okFill, text: XL.okText },
+    partial: { fill: XL.warnFill, text: XL.warnText },
+    none: { fill: XL.ngFill, text: XL.ngText },
+  }[tone];
+}
+function xlTitle(sheet, title, subtitle, lastCol) {
+  sheet.mergeCells(1, 1, 1, lastCol);
+  const titleCell = sheet.getCell(1, 1);
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 15, color: { argb: XL.white } };
+  titleCell.fill = xlFill(XL.ink);
+  titleCell.alignment = { vertical: "middle", indent: 1 };
+  sheet.getRow(1).height = 30;
+  sheet.mergeCells(2, 1, 2, lastCol);
+  const subCell = sheet.getCell(2, 1);
+  subCell.value = subtitle;
+  subCell.font = { color: { argb: XL.muted } };
+  subCell.fill = xlFill(XL.zebra);
+  subCell.border = { bottom: { style: "medium", color: { argb: XL.brand } } };
+  subCell.alignment = { indent: 1 };
+}
+function xlHeader(row) {
+  row.height = 22;
+  row.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: XL.white } };
+    cell.fill = xlFill(XL.ink);
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.border = xlBorder;
+  });
 }
 function excelDate(iso) {
   const d = logDateStr(iso);
-  if (!d) return "";
+  if (!d) return null;
   const [y, m, day] = d.split("-").map(Number);
-  return new Date(y, m - 1, day);
+  return new Date(Date.UTC(y, m - 1, day));
 }
 function photoUrl(photo) {
   return photo ? (photo.view || photo.thumb || "") : "";
 }
-function buildExcelWorkbook(XLSX, from, to) {
-  const logs = logsInRange(from, to).sort((a, b) => new Date(a.time) - new Date(b.time));
-  const stats = rekapStats(logs);
+async function buildExcelWorkbook(ExcelJS, from, to) {
+  const stats = rekapStats(from, to);
+  const period = rekapPeriodLabel(from, to);
+  const subtitle = `Periode ${period}  ·  Dibuat ${fmtDateTime(new Date())}`;
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "CRA Cek Area Kerja";
+  workbook.created = new Date();
 
-  const summaryRows = [
-    ["Rekap Cek Area Kerja"],
-    ["Periode", rekapPeriodLabel(from, to)],
-    ["Dibuat", fmtDateTime(new Date())],
-    [],
-    ["Total cek", stats.total],
-    ["Bersih", stats.clean],
-    ["Ada temuan", stats.withIssue],
-    ["Jumlah item NG", stats.findings.length],
-    ["NG belum diperbaiki", stats.open],
-    ["% Bersih", `${stats.pct}%`],
-    [],
-    ["Bagian", "Lantai", "Cek", "Bersih", "Ada temuan", "Item NG", "% Bersih"],
+  const summary = workbook.addWorksheet("Ringkasan", { views: [{ showGridLines: false }] });
+  summary.columns = [{ width: 26 }, { width: 10 }, { width: 12 }, { width: 10 }, { width: 13 }, { width: 8 }, { width: 8 }, { width: 12 }];
+  xlTitle(summary, "Rekap Cek Area Kerja", subtitle, 8);
+  const pct = stats.target ? Math.min(1, stats.done / stats.target) : 0;
+  const kpis = [
+    ["Item dicek", `${stats.done} / ${stats.target}`, progressTone(stats.done, stats.target)],
+    ["Belum dicek", Math.max(0, stats.target - stats.done), stats.target > stats.done ? "none" : "done"],
+    ["Progres", pct, progressTone(stats.done, stats.target)],
+    ["OK", stats.ok, "done"],
+    ["NG (temuan)", stats.ng, stats.ng ? "none" : "done"],
+    ["NG belum diperbaiki", stats.open, stats.open ? "partial" : "done"],
   ];
-  stats.sections.forEach(s => s.floors.forEach(f => {
-    summaryRows.push([s.section, f.floor, f.total, f.clean, f.issue, f.ng, `${pctOf(f.clean, f.total)}%`]);
-  }));
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-  summarySheet["!cols"] = [{ wch: 24 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 9 }, { wch: 10 }];
+  kpis.forEach(([label, value, tone], i) => {
+    const row = summary.getRow(4 + i);
+    row.getCell(1).value = label;
+    row.getCell(1).font = { bold: true };
+    row.getCell(1).fill = xlFill(XL.zebra);
+    row.getCell(1).border = xlBorder;
+    const cell = row.getCell(2);
+    cell.value = value;
+    if (label === "Progres") cell.numFmt = "0%";
+    const colors = xlTone(tone);
+    cell.font = { bold: true, size: 12, color: { argb: colors.text } };
+    cell.fill = xlFill(colors.fill);
+    cell.alignment = { horizontal: "center" };
+    cell.border = xlBorder;
+  });
 
-  const header = ["No", "Tanggal", "Jam", "Bagian", "Lantai", "Petugas", "Item", "Hasil",
-    "Catatan Temuan", "Status Perbaikan", "Diperbaiki Oleh", "Waktu Perbaikan", "Catatan Perbaikan", "Foto Temuan", "Foto Perbaikan"];
-  const widths = [5, 11, 7, 20, 7, 16, 46, 7, 32, 17, 16, 18, 32, 12, 14];
+  const tableTop = 4 + kpis.length + 1;
+  const note = summary.getCell(tableTop, 1);
+  note.value = stats.days > 1 ? `Target = jumlah item × ${stats.days} hari` : "Target = jumlah item yang wajib dicek";
+  note.font = { italic: true, color: { argb: XL.muted } };
+  const head = summary.getRow(tableTop + 1);
+  head.values = ["Bagian", "Lantai", "Dicek", "Target", "Belum dicek", "OK", "NG", "Progres"];
+  xlHeader(head);
+  let r = tableTop + 2;
+  stats.sections.forEach(s => s.floors.forEach(f => {
+    const row = summary.getRow(r++);
+    const left = Math.max(0, f.target - f.done);
+    row.values = [s.section, f.floor, f.done, f.target, left, f.ok, f.ng, f.target ? Math.min(1, f.done / f.target) : 0];
+    row.eachCell({ includeEmpty: true }, cell => { cell.border = xlBorder; });
+    row.getCell(2).alignment = { horizontal: "center" };
+    if (left) row.getCell(5).font = { bold: true, color: { argb: XL.ngText } };
+    const colors = xlTone(progressTone(f.done, f.target));
+    const progress = row.getCell(8);
+    progress.numFmt = "0%";
+    progress.font = { bold: true, color: { argb: colors.text } };
+    progress.fill = xlFill(colors.fill);
+    progress.alignment = { horizontal: "center" };
+    if (f.ng) row.getCell(7).font = { bold: true, color: { argb: XL.ngText } };
+  }));
+
+  const header = ["No", "Tanggal", "Jam", "Bagian", "Lantai", "Petugas", "Item", "Hasil", "Catatan Temuan",
+    "Status Perbaikan", "Diperbaiki Oleh", "Waktu Perbaikan", "Catatan Perbaikan", "Foto Temuan", "Foto Perbaikan"];
+  const widths = [5, 12, 7, 20, 7, 16, 44, 8, 32, 18, 16, 18, 32, 13, 14];
   const entries = [];
-  logs.forEach(l => logItems(l).forEach(it => {
+  stats.logs.forEach(l => logItems(l).forEach(it => {
+    if (!it.val) return;
     const time = it.time || l.time;
     const isNg = it.val === "NG";
     const repairs = Array.isArray(it.repairs) ? it.repairs : [];
     const repair = repairs[repairs.length - 1] || null;
-    const photo = photoUrl(it.photo);
-    const repairPhoto = repair ? photoUrl(repair.photo) : "";
     entries.push({
-      isNg, photo, repairPhoto,
-      row: [
-        0, excelDate(time), fmtTime(time, { hour: "2-digit", minute: "2-digit" }),
+      isNg,
+      repaired: it.repairStatus === "SELESAI",
+      photo: photoUrl(it.photo),
+      repairPhoto: repair ? photoUrl(repair.photo) : "",
+      values: [
+        excelDate(time), fmtTime(time, { hour: "2-digit", minute: "2-digit" }),
         l.section, Number(l.floor), it.officer || l.officer || "", it.label || it.id || "", isNg ? "NG" : "OK",
         isNg ? (it.note || l.note || "") : "",
         isNg ? (it.repairStatus === "SELESAI" ? "Sudah diperbaiki" : "Belum diperbaiki") : "",
         repair ? repair.officer || "" : "", repair ? fmtDateTime(repair.time) : "", repair ? repair.note || "" : "",
-        photo ? "Lihat foto" : "", repairPhoto ? "Lihat foto" : "",
       ],
     });
   }));
-  const sheetFrom = list => {
-    const rows = list.map((e, i) => [i + 1, ...e.row.slice(1)]);
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows], { cellDates: true, dateNF: "dd/mm/yyyy" });
+  const addDetailSheet = (name, title, list) => {
+    const sheet = workbook.addWorksheet(name, { views: [{ state: "frozen", ySplit: 3, showGridLines: false }] });
+    sheet.columns = widths.map(width => ({ width }));
+    xlTitle(sheet, title, subtitle, header.length);
+    const headRow = sheet.getRow(3);
+    headRow.values = header;
+    xlHeader(headRow);
     list.forEach((e, i) => {
-      if (e.photo) ws[XLSX.utils.encode_cell({ r: i + 1, c: 13 })].l = { Target: e.photo };
-      if (e.repairPhoto) ws[XLSX.utils.encode_cell({ r: i + 1, c: 14 })].l = { Target: e.repairPhoto };
+      const row = sheet.getRow(4 + i);
+      row.values = [i + 1, ...e.values, e.photo ? { text: "Lihat foto", hyperlink: e.photo } : "", e.repairPhoto ? { text: "Lihat foto", hyperlink: e.repairPhoto } : ""];
+      row.alignment = { vertical: "top", wrapText: true };
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.border = xlBorder;
+        if (i % 2) cell.fill = xlFill(XL.zebra);
+      });
+      row.getCell(2).numFmt = "dd/mm/yyyy";
+      [1, 2, 3, 5, 8].forEach(c => { row.getCell(c).alignment = { vertical: "top", horizontal: "center" }; });
+      const result = row.getCell(8);
+      result.font = { bold: true, color: { argb: e.isNg ? XL.ngText : XL.okText } };
+      result.fill = xlFill(e.isNg ? XL.ngFill : XL.okFill);
+      if (e.isNg) {
+        const status = row.getCell(10);
+        status.font = { bold: true, color: { argb: e.repaired ? XL.okText : XL.warnText } };
+        status.fill = xlFill(e.repaired ? XL.okFill : XL.warnFill);
+      }
+      [14, 15].forEach(c => {
+        if (row.getCell(c).value) row.getCell(c).font = { color: { argb: "FF1D4ED8" }, underline: true };
+      });
     });
-    ws["!cols"] = widths.map(wch => ({ wch }));
-    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length, 1), c: header.length - 1 } }) };
-    return ws;
+    sheet.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3 + Math.max(list.length, 1), column: header.length } };
   };
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "Ringkasan");
-  XLSX.utils.book_append_sheet(workbook, sheetFrom(entries), "Detail Pengecekan");
-  XLSX.utils.book_append_sheet(workbook, sheetFrom(entries.filter(e => e.isNg)), "Temuan NG");
-  return { workbook, count: logs.length };
+  addDetailSheet("Detail Pengecekan", "Detail Pengecekan per Item", entries);
+  addDetailSheet("Temuan NG", "Daftar Temuan NG", entries.filter(e => e.isNg));
+  return workbook;
 }
 async function exportExcel() {
   const { from, to } = rekapRange();
-  if (!logsInRange(from, to).length) { toast("Tidak ada data di periode ini.", "amber"); return; }
   const btn = document.getElementById("btnExport");
   btn.disabled = true;
   btn.classList.add("opacity-60");
   try {
-    const XLSX = await loadXlsx();
-    const { workbook } = buildExcelWorkbook(XLSX, from, to);
-    XLSX.writeFile(workbook, `rekap-cek-area_${from || "awal"}_sd_${to || todayStr()}.xlsx`);
+    const ExcelJS = await loadExcelJs();
+    const workbook = await buildExcelWorkbook(ExcelJS, from, to);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rekap-cek-area_${from || "awal"}_sd_${to || todayStr()}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
     toast("File Excel diunduh.", "emerald");
   } catch (err) {
     toast("Gagal membuat Excel: " + (err.message || "unknown error"), "rose");
