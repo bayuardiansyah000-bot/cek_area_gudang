@@ -1130,8 +1130,8 @@ function renderLaporan() {
 
 /* ============ DAFTAR ITEM UNTUK FILE DOWNLOAD ============ */
 const CHECK_TYPE_GROUPS = [
-  { label: "Stop Kontak Lampu", pattern: /^stop\s*kontak/i },
-  { label: "Colokan Listrik", pattern: /^colokan/i },
+  { label: "Stop Kontak Lampu", pattern: /^stop\s*kontak/i, strip: /^stop\s*kontak\s*(lampu\s*)?/i },
+  { label: "Colokan Listrik", pattern: /^colokan/i, strip: /^colokan\s*(listrik\s*)?/i },
   { label: "Pintu, Jendela & Rolling Door", pattern: /^(rolling\s*door|pintu|jendela)/i },
   { label: "Lainnya", pattern: null },
 ];
@@ -1176,11 +1176,21 @@ function buildLaporanCekListHtml_() {
   const cellHtml = n => `
     <div class="rounded-lg bg-slate-50 px-1.5 py-1 text-[9px] leading-tight text-slate-700 break-words">${esc(n)}</div>`;
 
-  const groups = CHECK_TYPE_GROUPS.map(g => ({ label: g.label, names: [] }));
+  const groups = CHECK_TYPE_GROUPS.map(g => ({ label: g.label, names: [], seen: new Set() }));
   names.forEach(nama => {
-    const index = CHECK_TYPE_GROUPS.findIndex(g => g.pattern && g.pattern.test(nama.trim()));
-    groups[index === -1 ? groups.length - 1 : index].names.push(nama);
+    const original = nama.trim();
+    let index = CHECK_TYPE_GROUPS.findIndex(g => g.pattern && g.pattern.test(original));
+    if (index === -1) index = groups.length - 1;
+    const strip = CHECK_TYPE_GROUPS[index].strip;
+    const short = strip ? original.replace(strip, "").replace(/^\((.*)\)$/, "$1").trim() : original;
+    const shown = short ? short.charAt(0).toUpperCase() + short.slice(1) : original;
+    const group = groups[index];
+    if (group.seen.has(shown.toLowerCase())) return;
+    group.seen.add(shown.toLowerCase());
+    group.names.push(shown);
   });
+  groups.forEach(g => g.names.sort((a, b) => a.localeCompare(b)));
+  const totalNames = groups.reduce((n, g) => n + g.names.length, 0);
 
   const body = names.length
     ? groups.filter(g => g.names.length).map(g => `
@@ -1200,7 +1210,7 @@ function buildLaporanCekListHtml_() {
           <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Keterangan pengecekan</div>
           <h3 class="text-sm font-bold text-slate-800 mt-0.5">Semua item yang dicek hari ini</h3>
         </div>
-        <span class="text-[10px] font-bold px-2 py-1 rounded-md bg-blue-50 text-blue-700">${names.length} nama</span>
+        <span class="text-[10px] font-bold px-2 py-1 rounded-md bg-blue-50 text-blue-700">${totalNames} nama</span>
       </div>
       ${body}
     </div>`;
