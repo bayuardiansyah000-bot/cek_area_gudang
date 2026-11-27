@@ -870,6 +870,7 @@ function getPendingToday() {
   const done = getDoneToday();
   return getAllCombos().filter(c => !done.has(dk(c.section, c.floor)));
 }
+let lastPendingCount = null;
 function renderPending() {
   const pending = getPendingToday();
   const total = getAllCombos().length;
@@ -878,7 +879,28 @@ function renderPending() {
   else badge.classList.add("hidden");
 
   const banner = document.getElementById("pendingBanner");
-  if (pending.length === 0) { banner.classList.add("hidden"); banner.innerHTML = ""; return; }
+  const justFinished = lastPendingCount > 0 && pending.length === 0 && total > 0;
+  lastPendingCount = pending.length;
+  if (pending.length === 0) {
+    if (!total) { banner.classList.add("hidden"); banner.innerHTML = ""; return; }
+    const itemTotal = getAllCombos().reduce((n, c) => n + floorItems(c.section, c.floor).length, 0);
+    banner.classList.remove("hidden");
+    banner.className = "slide-down rounded-xl bg-emerald-50 border border-emerald-300 p-3";
+    banner.setAttribute("role", "status");
+    banner.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-emerald-600 text-white grid place-items-center shrink-0">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-sm text-emerald-900">Semua checklist hari ini sudah selesai</div>
+          <div class="text-xs text-emerald-800 mt-0.5">${total} dari ${total} lantai · ${itemTotal} item sudah dicek · ${fmtDateLabel(todayStr())}</div>
+        </div>
+      </div>`;
+    if (justFinished) toast("Semua checklist hari ini sudah selesai!", "emerald");
+    return;
+  }
+  banner.removeAttribute("role");
   banner.classList.remove("hidden");
   banner.className = "slide-down rounded-xl bg-amber-50 border border-amber-300 p-3";
   banner.innerHTML = `
@@ -2252,7 +2274,7 @@ async function submit() {
       const remaining = pendingItems.length - activeKeys.length;
       toast(remaining > 0
         ? `${currentSection} L${currentFloor} — ${activeKeys.length} item tersimpan. Sisa ${remaining} item.`
-        : (getPendingToday().length === 0 ? "Semua cek hari ini sudah selesai!" : `${currentSection} L${currentFloor} selesai.`), "emerald");
+        : `${currentSection} L${currentFloor} selesai.`, "emerald");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
